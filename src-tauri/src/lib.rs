@@ -134,6 +134,11 @@ fn get_pet_thumbnail(manifest_path: Option<String>) -> Result<pet::PetThumbnail,
 }
 
 #[tauri::command]
+fn get_pet_preview(manifest_path: Option<String>) -> Result<pet::PetPayload, String> {
+    pet::preview_payload(manifest_path.as_deref())
+}
+
+#[tauri::command]
 fn set_paused(paused: bool, app: AppHandle, state: State<'_, AppState>) -> bool {
     state.paused.store(paused, Ordering::Relaxed);
     let _ = app.emit("pause-changed", paused);
@@ -588,6 +593,7 @@ pub fn run() {
             select_pet,
             get_pet,
             get_pet_thumbnail,
+            get_pet_preview,
             set_paused,
             get_autostart_enabled,
             set_autostart_enabled,

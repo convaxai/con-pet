@@ -9,10 +9,10 @@ import {
   primaryMonitor,
   type Monitor,
 } from "@tauri-apps/api/window";
-import { animations } from "./animations";
+import { animations, randomTriggerAnimation } from "./animations";
 import type { SpriteFrame } from "./animations";
 import { computePosition } from "./positioning";
-import type { AppConfig, PetPayload } from "./types";
+import type { AnimationName, AppConfig, PetPayload } from "./types";
 
 const sleep = (milliseconds: number) =>
   new Promise<void>((resolve) => window.setTimeout(resolve, milliseconds));
@@ -33,6 +33,7 @@ export async function renderOverlay(): Promise<void> {
   await getCurrentWebview().setBackgroundColor([0, 0, 0, 0]).catch(() => undefined);
 
   let generation = 0;
+  let previousAnimation: AnimationName | undefined;
   await listen("keyword-triggered", async () => {
     const currentGeneration = ++generation;
     try {
@@ -41,14 +42,16 @@ export async function renderOverlay(): Promise<void> {
         invoke<PetPayload>("get_pet"),
       ]);
       if (!config.enabled) return;
+      const animation = randomTriggerAnimation(pet.manifest.id, previousAnimation);
+      previousAnimation = animation;
       await preloadSpritesheet(pet.spritesheetDataUrl);
       if (generation !== currentGeneration) return;
-      await placeOverlay(config, pet);
-      configureSprite(motion, sprite, config, pet);
-      applyFrame(motion, sprite, pet, animations[config.animation].frames[0]);
+      await placeOverlay(config, pet, animation);
+      configureSprite(motion, sprite, config, pet, animation);
+      applyFrame(motion, sprite, pet, animations[animation].frames[0]);
       await getCurrentWindow().show();
       await invoke("report_overlay_rendered");
-      await play(motion, sprite, config, pet, currentGeneration, () => generation);
+      await play(motion, sprite, config, pet, animation, currentGeneration, () => generation);
       if (generation === currentGeneration) await getCurrentWindow().hide();
     } catch (error) {
       console.error("Con Pet overlay failed", error);
@@ -64,8 +67,9 @@ function configureSprite(
   sprite: HTMLDivElement,
   config: AppConfig,
   pet: PetPayload,
+  animation: AnimationName,
 ): void {
-  const padding = motionPadding(config);
+  const padding = motionPadding(animation);
   motion.style.left = `${padding.x / 2}px`;
   motion.style.top = "0";
   motion.style.width = `${pet.frameWidth * config.scale}px`;
@@ -111,10 +115,11 @@ async function play(
   sprite: HTMLDivElement,
   config: AppConfig,
   pet: PetPayload,
+  animationName: AnimationName,
   generation: number,
   currentGeneration: () => number,
 ): Promise<void> {
-  const animation = animations[config.animation];
+  const animation = animations[animationName];
   for (let loop = 0; loop < config.loops; loop += 1) {
     for (const frame of animation.frames) {
       if (generation !== currentGeneration()) return;
@@ -124,13 +129,17 @@ async function play(
   }
 }
 
-async function placeOverlay(config: AppConfig, pet: PetPayload): Promise<void> {
+async function placeOverlay(
+  config: AppConfig,
+  pet: PetPayload,
+  animation: AnimationName,
+): Promise<void> {
   const monitors = await availableMonitors();
   if (monitors.length === 0) return;
   const monitor = await chooseMonitor(config, monitors);
   const scaleFactor = monitor.scaleFactor;
   const baseWidth = pet.frameWidth;
-  const padding = motionPadding(config);
+  const padding = motionPadding(animation);
   const overlayWidth = baseWidth * config.scale + padding.x;
   const overlayHeight = pet.frameHeight * config.scale + padding.y;
   const spriteWidth = overlayWidth * scaleFactor;
@@ -154,8 +163,8 @@ async function placeOverlay(config: AppConfig, pet: PetPayload): Promise<void> {
   await overlay.setPosition(new PhysicalPosition(position.x, position.y));
 }
 
-function motionPadding(config: AppConfig): { x: number; y: number } {
-  return config.animation === "web-swing" ? { x: 180, y: 52 } : { x: 0, y: 0 };
+function motionPadding(animation: AnimationName): { x: number; y: number } {
+  return animation === "web-swing" ? { x: 180, y: 52 } : { x: 0, y: 0 };
 }
 
 async function chooseMonitor(config: AppConfig, monitors: Monitor[]): Promise<Monitor> {

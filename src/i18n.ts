@@ -1,5 +1,3 @@
-import type { AnimationName } from "./types";
-
 export type Locale = "zh-CN" | "en";
 
 const zh = {
@@ -30,7 +28,6 @@ const zh = {
   choosePet: "选择宠物",
   localPetCount: "{count} 个宠物",
   appearance: "外观",
-  action: "动作",
   size: "大小",
   position: "位置",
   positionRandom: "随机",
@@ -109,7 +106,6 @@ const en: Record<MessageKey, string> = {
   choosePet: "Choose pet",
   localPetCount: "{count} pets",
   appearance: "Appearance",
-  action: "Action",
   size: "Size",
   position: "Position",
   positionRandom: "Random",
@@ -158,41 +154,10 @@ const en: Record<MessageKey, string> = {
   fatalError: "Con Pet failed to start",
 };
 
-const animationLabels: Record<Locale, Record<AnimationName, string>> = {
-  "zh-CN": {
-    idle: "待机",
-    "running-right": "向右跑",
-    "running-left": "向左跑",
-    waving: "挥手",
-    jumping: "跳跃",
-    failed: "失败",
-    "web-swing": "吊线摆荡",
-    waiting: "等待",
-    running: "小跑",
-    review: "检查",
-  },
-  en: {
-    idle: "Idle",
-    "running-right": "Run right",
-    "running-left": "Run left",
-    waving: "Wave",
-    jumping: "Jump",
-    failed: "Failed",
-    "web-swing": "Web swing",
-    waiting: "Wait",
-    running: "Run",
-    review: "Review",
-  },
-};
-
 export function translate(locale: Locale, key: MessageKey, values?: Record<string, string | number>): string {
   let message = (locale === "en" ? en : zh)[key];
   for (const [name, value] of Object.entries(values ?? {})) {
     message = message.split(`{${name}}`).join(String(value));
   }
   return message;
-}
-
-export function animationLabel(locale: Locale, animation: AnimationName): string {
-  return animationLabels[locale][animation];
 }

@@ -15,7 +15,6 @@ export interface AppConfig {
   keyword: string;
   cooldownMs: number;
   sequenceTimeoutMs: number;
-  animation: AnimationName;
   loops: number;
   scale: number;
   position: {

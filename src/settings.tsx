@@ -17,7 +17,7 @@ import {
   checkInputMonitoringPermission,
   requestInputMonitoringPermission,
 } from "tauri-plugin-macos-permissions-api";
-import { animations } from "./animations";
+import { animations, galleryPreviewAnimation } from "./animations";
 import {
   AnimatedBadge,
   type AnimatedBadgeStatus,
@@ -25,7 +25,6 @@ import {
 import { BouncyAccordion } from "./components/motion/bouncy-accordion";
 import { Button } from "./components/motion/button";
 import { Input } from "./components/motion/input";
-import { MetallicButton } from "./components/motion/metallic-button";
 import {
   Select,
   SelectContent,
@@ -35,7 +34,7 @@ import {
 } from "./components/motion/select";
 import { Switch } from "./components/motion/switch";
 import { Tabs, TabsList, TabsTrigger } from "./components/motion/tabs";
-import { animationLabel, translate, type Locale } from "./i18n";
+import { translate, type Locale } from "./i18n";
 import { cn } from "./lib/utils";
 import type {
   AnimationName,
@@ -43,6 +42,7 @@ import type {
   MarketInstallResult,
   MonitorMode,
   PetChoice,
+  PetPayload,
   PetThumbnail,
   PositionMode,
   RuntimeStatus,
@@ -67,6 +67,12 @@ interface SelectOption {
 
 const thumbnailCache = new Map<string, string>();
 const thumbnailRequests = new Map<string, Promise<string>>();
+const payloadCache = new Map<string, Promise<PetPayload>>();
+const PAYLOAD_CACHE_LIMIT = 12;
+
+function petCacheKey(pet: LocalPet): string {
+  return pet.manifestPath ?? "builtin:pathlight";
+}
 
 async function checkPermission(platform: string): Promise<boolean> {
   if (platform !== "macos") return true;
@@ -78,7 +84,7 @@ async function checkPermission(platform: string): Promise<boolean> {
 }
 
 async function loadThumbnail(pet: LocalPet): Promise<string> {
-  const key = pet.manifestPath ?? "builtin:pathlight";
+  const key = petCacheKey(pet);
   const cached = thumbnailCache.get(key);
   if (cached) return cached;
   const active = thumbnailRequests.get(key);
@@ -91,6 +97,30 @@ async function loadThumbnail(pet: LocalPet): Promise<string> {
     return thumbnail.imageDataUrl;
   });
   thumbnailRequests.set(key, request);
+  return request;
+}
+
+function loadPetPayload(pet: LocalPet): Promise<PetPayload> {
+  const key = petCacheKey(pet);
+  const cached = payloadCache.get(key);
+  if (cached) {
+    payloadCache.delete(key);
+    payloadCache.set(key, cached);
+    return cached;
+  }
+
+  const request = invoke<PetPayload>("get_pet_preview", {
+    manifestPath: pet.manifestPath,
+  });
+  payloadCache.set(key, request);
+  while (payloadCache.size > PAYLOAD_CACHE_LIMIT) {
+    const oldestKey = payloadCache.keys().next().value;
+    if (oldestKey === undefined) break;
+    payloadCache.delete(oldestKey);
+  }
+  void request.catch(() => {
+    if (payloadCache.get(key) === request) payloadCache.delete(key);
+  });
   return request;
 }
 
@@ -289,6 +319,7 @@ function SettingsApp() {
   };
 
   const applyPet = async (pet: LocalPet, selectedNotice = true): Promise<AppConfig> => {
+    const previousPet = pets.find((candidate) => candidate.manifestPath === config?.petManifestPath);
     let selected = await invoke<AppConfig>("select_pet", {
       manifestPath: pet.manifestPath,
     });
@@ -296,7 +327,6 @@ function SettingsApp() {
       selected = await invoke<AppConfig>("save_config", {
         config: {
           ...selected,
-          animation: "web-swing",
           loops: 1,
           scale: 1.6,
           position: { ...selected.position, mode: "top-center", margin: 0 },
@@ -304,9 +334,9 @@ function SettingsApp() {
       });
       if (selectedNotice) notify(tx("spidermanSelected"));
     } else {
-      if (selected.animation === "web-swing") {
+      if (previousPet?.id === "spiderman4-sticker") {
         selected = await invoke<AppConfig>("save_config", {
-          config: { ...selected, animation: "waving", loops: 2 },
+          config: { ...selected, loops: 2 },
         });
       }
       if (selectedNotice) notify(tx("petSelected"));
@@ -411,9 +441,6 @@ function SettingsApp() {
     );
   }
 
-  const animationOptions: SelectOption[] = (Object.keys(animations) as AnimationName[]).map(
-    (animation) => ({ value: animation, label: animationLabel(locale, animation) }),
-  );
   const positionOptions: SelectOption[] = [
     { value: "random", label: tx("positionRandom") },
     { value: "top-left", label: tx("positionTopLeft") },
@@ -476,6 +503,7 @@ function SettingsApp() {
         ) : null}
 
         <form className="settings-form" onSubmit={(event) => void handleSave(event)}>
+          <div className="settings-scroll">
           <section className="card">
             <div className="section-heading">
               <h2>{tx("triggerTitle")}</h2>
@@ -498,15 +526,18 @@ function SettingsApp() {
           </section>
 
           <section className="card pet-choice-card">
-            <div className="pet-choice-copy">
-              <span className="section-label">{tx("currentPet")}</span>
-              <h2>{currentPet?.displayName ?? tx("loading")}</h2>
+            <div className="pet-choice-current">
+              {currentPet ? <AnimationFigure pet={currentPet} /> : null}
+              <div className="pet-choice-copy">
+                <span className="section-label">{tx("currentPet")}</span>
+                <h2>{currentPet?.displayName ?? tx("loading")}</h2>
+              </div>
             </div>
             <div className="pet-choice-actions">
               <span className="muted">{tx("localPetCount", { count: pets.length })}</span>
-              <MetallicButton onClick={() => showPage("pets")}>
+              <Button variant="secondary" ripple onClick={() => showPage("pets")}>
                 {tx("choosePet")}
-              </MetallicButton>
+              </Button>
             </div>
           </section>
 
@@ -514,19 +545,7 @@ function SettingsApp() {
             <div className="section-heading">
               <h2>{tx("appearance")}</h2>
             </div>
-            <div className="field-grid three">
-              <FormField label={tx("action")}>
-                <MotionSelect
-                  id="animation"
-                  value={draft.animation}
-                  options={animationOptions}
-                  openSelect={openSelect}
-                  setOpenSelect={setOpenSelect}
-                  onValueChange={(value) =>
-                    setDraft({ ...draft, animation: value as AnimationName })
-                  }
-                />
-              </FormField>
+            <div className="field-grid two">
               <FormField label={tx("size")}>
                 <Input
                   type="number"
@@ -674,14 +693,15 @@ function SettingsApp() {
               ) : null}
             </div>
           </BouncyAccordion>
+          </div>
 
           <footer className="actions">
             <Button variant="outline" ripple onClick={() => void handlePreview()}>
               {tx("testAnimation")}
             </Button>
-            <MetallicButton type="submit">
+            <Button type="submit" variant="primary" ripple>
               {tx("save")}
-            </MetallicButton>
+            </Button>
           </footer>
         </form>
       </main>
@@ -745,6 +765,38 @@ function MotionSelect({
         ))}
       </SelectContent>
     </Select>
+  );
+}
+
+function AnimationFigure({ pet }: { pet: LocalPet }) {
+  const [payload, setPayload] = useState<PetPayload | null>(null);
+  const animation = galleryPreviewAnimation(pet.id);
+
+  useEffect(() => {
+    let active = true;
+    setPayload(null);
+    void loadPetPayload(pet)
+      .then((nextPayload) => {
+        if (active) setPayload(nextPayload);
+      })
+      .catch(() => {
+        if (active) setPayload(null);
+      });
+    return () => {
+      active = false;
+    };
+  }, [pet.manifestPath]);
+
+  return (
+    <div className="animation-figure" role="img" aria-label={pet.displayName}>
+      <div className="animation-figure-visual">
+        {payload ? (
+          <SpriteAnimation payload={payload} animation={animation} playing maxScale={0.28} />
+        ) : (
+          <span className="pet-gallery-placeholder">P</span>
+        )}
+      </div>
+    </div>
   );
 }
 
@@ -866,6 +918,9 @@ function PetCard({
   onSelect: () => void;
 }) {
   const reduce = useReducedMotion();
+  const [hovered, setHovered] = useState(false);
+  const [focused, setFocused] = useState(false);
+  const previewing = hovered || focused;
   return (
     <motion.button
       type="button"
@@ -873,12 +928,16 @@ function PetCard({
       disabled={busy}
       whileTap={reduce ? undefined : { scale: 0.985 }}
       whileHover={reduce ? undefined : { y: -3, scale: 1.008 }}
+      onHoverStart={() => setHovered(true)}
+      onHoverEnd={() => setHovered(false)}
+      onFocus={() => setFocused(true)}
+      onBlur={() => setFocused(false)}
       onClick={onSelect}
       className={cn("pet-gallery-card", active && "active")}
     >
       <span className="pet-gallery-visual">
         <span className="pet-gallery-placeholder">P</span>
-        <PetImage pet={pet} />
+        <PetImage pet={pet} previewing={previewing} />
       </span>
       <span className="pet-gallery-copy">
         <strong>{pet.displayName}</strong>
@@ -888,11 +947,12 @@ function PetCard({
   );
 }
 
-function PetImage({ pet }: { pet: LocalPet }) {
+function PetImage({ pet, previewing }: { pet: LocalPet; previewing: boolean }) {
   const ref = useRef<HTMLImageElement>(null);
   const [source, setSource] = useState<string | null>(
-    thumbnailCache.get(pet.manifestPath ?? "builtin:pathlight") ?? null,
+    thumbnailCache.get(petCacheKey(pet)) ?? null,
   );
+  const [payload, setPayload] = useState<PetPayload | null>(null);
 
   useEffect(() => {
     const image = ref.current;
@@ -909,13 +969,144 @@ function PetImage({ pet }: { pet: LocalPet }) {
     return () => observer.disconnect();
   }, [pet, source]);
 
+  useEffect(() => {
+    if (!previewing || payload) return;
+    let active = true;
+    void loadPetPayload(pet)
+      .then((nextPayload) => {
+        if (active) setPayload(nextPayload);
+      })
+      .catch(() => undefined);
+    return () => {
+      active = false;
+    };
+  }, [payload, pet, previewing]);
+
   return (
-    <img
-      ref={ref}
-      src={source ?? undefined}
-      className={source ? "ready" : undefined}
-      alt={pet.displayName}
-      loading="lazy"
-    />
+    <>
+      <img
+        ref={ref}
+        src={source ?? undefined}
+        className={cn(source && "ready", payload && previewing && "preview-hidden")}
+        alt={pet.displayName}
+        loading="lazy"
+      />
+      {payload && previewing ? (
+        <SpriteAnimation
+          payload={payload}
+          animation={galleryPreviewAnimation(pet.id)}
+          playing
+          maxScale={0.7}
+        />
+      ) : null}
+    </>
+  );
+}
+
+function SpriteAnimation({
+  payload,
+  animation,
+  playing,
+  maxScale,
+}: {
+  payload: PetPayload;
+  animation: AnimationName;
+  playing: boolean;
+  maxScale: number;
+}) {
+  const reduce = useReducedMotion();
+  const previewRef = useRef<HTMLSpanElement>(null);
+  const [frameIndex, setFrameIndex] = useState(0);
+  const [viewport, setViewport] = useState({ width: 0, height: 0 });
+  const frames = animations[animation].frames;
+  const bounds = useMemo(() => {
+    let minX = Number.POSITIVE_INFINITY;
+    let maxX = Number.NEGATIVE_INFINITY;
+    let minY = Number.POSITIVE_INFINITY;
+    let maxY = Number.NEGATIVE_INFINITY;
+    for (const candidate of frames) {
+      const radians = ((candidate.rotation ?? 0) * Math.PI) / 180;
+      const rotatedWidth =
+        Math.abs(payload.frameWidth * Math.cos(radians)) +
+        Math.abs(payload.frameHeight * Math.sin(radians));
+      const rotatedHeight =
+        Math.abs(payload.frameWidth * Math.sin(radians)) +
+        Math.abs(payload.frameHeight * Math.cos(radians));
+      const x = candidate.offsetX ?? 0;
+      const y = candidate.offsetY ?? 0;
+      minX = Math.min(minX, x - rotatedWidth / 2);
+      maxX = Math.max(maxX, x + rotatedWidth / 2);
+      minY = Math.min(minY, y - rotatedHeight / 2);
+      maxY = Math.max(maxY, y + rotatedHeight / 2);
+    }
+    return {
+      width: maxX - minX,
+      height: maxY - minY,
+      centerX: (minX + maxX) / 2,
+      centerY: (minY + maxY) / 2,
+    };
+  }, [frames, payload.frameHeight, payload.frameWidth]);
+
+  useEffect(() => {
+    const preview = previewRef.current;
+    if (!preview) return;
+    const updateSize = () => {
+      const { width, height } = preview.getBoundingClientRect();
+      setViewport((current) =>
+        current.width === width && current.height === height ? current : { width, height },
+      );
+    };
+    updateSize();
+    if (typeof ResizeObserver === "undefined") return;
+    const observer = new ResizeObserver(updateSize);
+    observer.observe(preview);
+    return () => observer.disconnect();
+  }, []);
+
+  useEffect(() => {
+    setFrameIndex(0);
+    if (!playing || reduce || frames.length < 2) return;
+
+    let index = 0;
+    let timeout = 0;
+    const advance = () => {
+      timeout = window.setTimeout(() => {
+        index = (index + 1) % frames.length;
+        setFrameIndex(index);
+        advance();
+      }, frames[index].duration);
+    };
+    advance();
+    return () => window.clearTimeout(timeout);
+  }, [animation, frames, playing, reduce]);
+
+  const frame = frames[frameIndex] ?? frames[0];
+  const padding = 8;
+  const scale =
+    viewport.width > 0 && viewport.height > 0
+      ? Math.min(
+          maxScale,
+          Math.max(0.01, viewport.width - padding * 2) / bounds.width,
+          Math.max(0.01, viewport.height - padding * 2) / bounds.height,
+        )
+      : maxScale;
+  const offsetX = ((frame.offsetX ?? 0) - bounds.centerX) * scale;
+  const offsetY = ((frame.offsetY ?? 0) - bounds.centerY) * scale;
+  return (
+    <span ref={previewRef} className="pet-sprite-preview" aria-hidden="true">
+      <span className="pet-sprite-motion">
+        <span
+          className="pet-sprite-frame"
+          style={{
+            width: `${payload.frameWidth}px`,
+            height: `${payload.frameHeight}px`,
+            backgroundImage: `url("${payload.spritesheetDataUrl}")`,
+            backgroundSize: `${payload.frameWidth * payload.columns}px ${payload.frameHeight * payload.rows}px`,
+            backgroundPosition: `${-frame.column * payload.frameWidth}px ${-frame.row * payload.frameHeight}px`,
+            transform: `translate(calc(-50% + ${offsetX}px), calc(-50% + ${offsetY}px)) rotate(${frame.rotation ?? 0}deg) scale(${scale})`,
+          }}
+        />
+      </span>
+    </span>
   );
 }

@@ -62,3 +62,36 @@ export const animations: Record<AnimationName, AnimationDefinition> = {
   running: { label: "小跑", frames: rowFrames(7, [120, 120, 120, 120, 120, 220]) },
   review: { label: "检查", frames: rowFrames(8, [150, 150, 150, 150, 150, 280]) },
 };
+
+export const standardTriggerAnimations = [
+  "idle",
+  "running-right",
+  "running-left",
+  "waving",
+  "jumping",
+  "failed",
+  "waiting",
+  "running",
+  "review",
+] as const satisfies readonly AnimationName[];
+
+export function randomTriggerAnimation(
+  petId: string,
+  previous?: AnimationName,
+  random: () => number = Math.random,
+): AnimationName {
+  if (petId === "spiderman4-sticker") return "web-swing";
+
+  const candidates = previous
+    ? standardTriggerAnimations.filter((animation) => animation !== previous)
+    : standardTriggerAnimations;
+  const index = Math.min(
+    candidates.length - 1,
+    Math.max(0, Math.floor(random() * candidates.length)),
+  );
+  return candidates[index];
+}
+
+export function galleryPreviewAnimation(petId: string): AnimationName {
+  return petId === "spiderman4-sticker" ? "web-swing" : "waving";
+}
