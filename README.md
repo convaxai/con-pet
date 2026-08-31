@@ -92,7 +92,7 @@ Thank you to every maintainer and contributor behind these projects.
 
 CI runs the frontend tests, TypeScript/Vite production build, Rust formatting check, Clippy, and Rust tests on macOS and Windows. The macOS input listener and permission lifecycle still require manual verification on a physical Mac with Input Monitoring permission.
 
-After CI succeeds on `main`, the `Package installers` workflow builds a macOS Universal DMG and Windows x64 NSIS installer. Artifacts include the commit SHA and are retained for 30 days. The workflow can also be started manually.
+After CI succeeds on `main`, the `Package installers` workflow builds a [macOS Universal DMG](https://github.com/convaxai/con-pet/releases/download/nightly/Con-Pet-macOS-universal.dmg) and [Windows x64 NSIS installer](https://github.com/convaxai/con-pet/releases/download/nightly/Con-Pet-Windows-x64.exe), then updates the rolling [Nightly Release](https://github.com/convaxai/con-pet/releases/tag/nightly) and its [SHA-256 checksums](https://github.com/convaxai/con-pet/releases/download/nightly/SHA256SUMS.txt). These stable download links do not expire automatically. Commit-specific Actions artifacts are also retained for 30 days for debugging, and the workflow can be started manually without publishing a release.
 
 ## License
 

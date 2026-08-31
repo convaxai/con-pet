@@ -2,42 +2,154 @@ name: Package installers
 
 on:
   workflow_dispatch:
+  workflow_run:
+    workflows: [CI]
+    types: [completed]
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: package-main
+  cancel-in-progress: true
+
+env:
+  CARGO_TERM_COLOR: always
 
 jobs:
   package:
+    name: Package (${{ matrix.name }})
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      (github.event.workflow_run.conclusion == 'success' &&
+      github.event.workflow_run.event == 'push')
+    timeout-minutes: 60
     strategy:
       fail-fast: false
       matrix:
         include:
-          - os: macos-14
+          - name: macOS universal
+            os: macos-latest
+            target: universal-apple-darwin
+            rust-targets: aarch64-apple-darwin,x86_64-apple-darwin
             bundle: dmg
-            artifact: pc-pet-macos
-            path: src-tauri/target/release/bundle/dmg/*.dmg
-          - os: windows-latest
+            artifact: con-pet-macos-universal
+            path: src-tauri/target/universal-apple-darwin/release/bundle/dmg/*.dmg
+          - name: Windows x64
+            os: windows-latest
+            target: x86_64-pc-windows-msvc
+            rust-targets: x86_64-pc-windows-msvc
             bundle: nsis
-            artifact: pc-pet-windows
-            path: src-tauri/target/release/bundle/nsis/*.exe
+            artifact: con-pet-windows-x64
+            path: src-tauri/target/x86_64-pc-windows-msvc/release/bundle/nsis/*.exe
     runs-on: ${{ matrix.os }}
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event.workflow_run.head_sha || github.sha }}
 
       - uses: pnpm/action-setup@v4
         with:
           version: 10
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v6
         with:
           node-version: 22
           cache: pnpm
 
-      - uses: dtolnay/rust-toolchain@stable
-
-      - run: pnpm install --frozen-lockfile
-      - run: pnpm tauri build --bundles ${{ matrix.bundle }}
-
-      - uses: actions/upload-artifact@v4
+      - uses: dtolnay/rust-toolchain@1.98.0
         with:
-          name: ${{ matrix.artifact }}
+          targets: ${{ matrix.rust-targets }}
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri -> target
+          key: ${{ matrix.target }}
+
+      - name: Install frontend dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build installer
+        env:
+          APPLE_SIGNING_IDENTITY: ${{ runner.os == 'macOS' && '-' || '' }}
+        run: pnpm tauri build --ci --target ${{ matrix.target }} --bundles ${{ matrix.bundle }}
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: ${{ matrix.artifact }}-${{ github.event.workflow_run.head_sha || github.sha }}
           path: ${{ matrix.path }}
           if-no-files-found: error
+          retention-days: 30
+          compression-level: 0
+
+  publish-nightly:
+    name: Publish nightly release
+    needs: package
+    if: >-
+      github.event_name == 'workflow_run' &&
+      github.event.workflow_run.conclusion == 'success' &&
+      github.event.workflow_run.event == 'push'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - uses: actions/download-artifact@v8
+        with:
+          pattern: con-pet-*
+          path: release
+          merge-multiple: true
+
+      - name: Prepare stable download names and checksums
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          mac_dmg="$(find release -type f -name '*.dmg' -print -quit)"
+          windows_exe="$(find release -type f -name '*.exe' -print -quit)"
+          test -n "$mac_dmg"
+          test -n "$windows_exe"
+
+          mv "$mac_dmg" release/Con-Pet-macOS-universal.dmg
+          mv "$windows_exe" release/Con-Pet-Windows-x64.exe
+
+          cd release
+          sha256sum Con-Pet-macOS-universal.dmg Con-Pet-Windows-x64.exe > SHA256SUMS.txt
+
+      - name: Publish rolling nightly release
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TARGET_SHA: ${{ github.event.workflow_run.head_sha }}
+        run: |
+          set -euo pipefail
+
+          release_tag=nightly
+          release_notes="Automated unsigned development build from main commit ${TARGET_SHA}. macOS may require Open Anyway; Windows may show a SmartScreen warning."
+
+          if gh api "repos/${GITHUB_REPOSITORY}/git/ref/tags/${release_tag}" >/dev/null 2>&1; then
+            gh api --method PATCH "repos/${GITHUB_REPOSITORY}/git/refs/tags/${release_tag}" \
+              -f sha="${TARGET_SHA}" -F force=true >/dev/null
+          else
+            gh api --method POST "repos/${GITHUB_REPOSITORY}/git/refs" \
+              -f ref="refs/tags/${release_tag}" -f sha="${TARGET_SHA}" >/dev/null
+          fi
+
+          if gh release view "$release_tag" >/dev/null 2>&1; then
+            gh release edit "$release_tag" \
+              --title "Con Pet Nightly" \
+              --notes "$release_notes" \
+              --prerelease \
+              --latest=false
+          else
+            gh release create "$release_tag" \
+              --verify-tag \
+              --title "Con Pet Nightly" \
+              --notes "$release_notes" \
+              --prerelease \
+              --latest=false
+          fi
+
+          gh release upload "$release_tag" release/* --clobber
