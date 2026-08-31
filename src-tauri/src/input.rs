@@ -72,7 +72,7 @@ pub fn start(app: AppHandle, state: AppState) {
 fn update_listener_state(app: &AppHandle, state: &AppState, running: bool, error: Option<String>) {
     let mut changed = state.listener_running.swap(running, Ordering::Relaxed) != running;
     if let Ok(mut slot) = state.listener_error.write() {
-        changed = *slot != error;
+        changed |= *slot != error;
         *slot = error.clone();
     }
     if changed {
