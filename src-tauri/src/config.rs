@@ -12,7 +12,6 @@ pub struct AppConfig {
     pub keyword: String,
     pub cooldown_ms: u64,
     pub sequence_timeout_ms: u64,
-    pub animation: String,
     pub loops: u8,
     pub scale: f64,
     pub position: PositionConfig,
@@ -65,7 +64,6 @@ impl Default for AppConfig {
             keyword: "codex".into(),
             cooldown_ms: 1_200,
             sequence_timeout_ms: 3_000,
-            animation: "waving".into(),
             loops: 2,
             scale: 1.0,
             position: PositionConfig::default(),
@@ -147,26 +145,6 @@ impl AppConfig {
             }
             .into());
         }
-        const ANIMATIONS: [&str; 10] = [
-            "idle",
-            "running-right",
-            "running-left",
-            "waving",
-            "jumping",
-            "failed",
-            "web-swing",
-            "waiting",
-            "running",
-            "review",
-        ];
-        if !ANIMATIONS.contains(&self.animation.as_str()) {
-            return Err(if english {
-                "Unknown pet animation"
-            } else {
-                "未知的宠物动画"
-            }
-            .into());
-        }
         Ok(self)
     }
 }
@@ -219,8 +197,12 @@ mod tests {
 
     #[test]
     fn legacy_config_defaults_to_chinese_locale() {
-        let config: AppConfig = serde_json::from_str(r#"{"keyword":"mj"}"#).unwrap();
+        let config: AppConfig =
+            serde_json::from_str(r#"{"keyword":"mj","animation":"failed"}"#).unwrap();
         assert_eq!(config.locale, AppLocale::ZhCn);
         assert_eq!(config.keyword, "mj");
+        assert!(!serde_json::to_string(&config)
+            .unwrap()
+            .contains("animation"));
     }
 }

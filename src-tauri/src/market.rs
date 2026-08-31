@@ -17,6 +17,34 @@ const MARKET_LIMIT: usize = 100;
 const MAX_DOWNLOAD_BYTES: u64 = 30 * 1024 * 1024;
 const MAX_MANIFEST_BYTES: u64 = 64 * 1024;
 const MAX_SPRITESHEET_BYTES: u64 = 28 * 1024 * 1024;
+const BLOCKED_MARKET_PET_IDS: [&str; 1] = ["maozedong"];
+const POLITICAL_TAGS: [&str; 3] = ["political", "politics", "politician"];
+const POLITICAL_TEXT_MARKERS: [&str; 24] = [
+    "politician",
+    "political figure",
+    "president",
+    "prime minister",
+    "head of state",
+    "chairman mao",
+    "mao zedong",
+    "donald trump",
+    "joe biden",
+    "vladimir putin",
+    "xi jinping",
+    "kim jong-un",
+    "volodymyr zelensky",
+    "政治人物",
+    "国家主席",
+    "总统",
+    "总理",
+    "毛泽东",
+    "习近平",
+    "特朗普",
+    "拜登",
+    "普京",
+    "泽连斯基",
+    "金正恩",
+];
 
 #[derive(Clone, Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -253,7 +281,12 @@ async fn fetch_market_catalog(app: &AppHandle) -> Result<Vec<MarketPet>, String>
         let total_pages = response.total_pages;
         for remote in response.pets {
             if leader_ids.contains(&remote.id)
-                || has_leader_tag(&remote.tags)
+                || is_disallowed_market_pet(
+                    &remote.id,
+                    &remote.display_name,
+                    &remote.description,
+                    &remote.tags,
+                )
                 || !seen.insert(remote.id.clone())
             {
                 continue;
@@ -287,7 +320,10 @@ async fn fetch_market_catalog(app: &AppHandle) -> Result<Vec<MarketPet>, String>
     }
 
     if market.len() < MARKET_LIMIT {
-        return Err(format!("过滤 Leaders 后只获得 {} 个市场宠物", market.len()));
+        return Err(format!(
+            "过滤不适合内容后只获得 {} 个市场宠物",
+            market.len()
+        ));
     }
     Ok(market)
 }
@@ -536,8 +572,12 @@ fn load_market_cache_file(app: &AppHandle, path: &Path) -> Result<Vec<MarketPet>
     let raw = fs::read(path).map_err(|error| format!("读取市场缓存失败：{error}"))?;
     let mut pets: Vec<MarketPet> =
         serde_json::from_slice(&raw).map_err(|error| format!("市场缓存无效：{error}"))?;
-    if pets.len() != MARKET_LIMIT || pets.iter().any(|pet| has_leader_tag(&pet.tags)) {
-        return Err("市场缓存不完整或包含 Leaders".into());
+    if pets.len() != MARKET_LIMIT
+        || pets.iter().any(|pet| {
+            is_disallowed_market_pet(&pet.id, &pet.display_name, &pet.description, &pet.tags)
+        })
+    {
+        return Err("市场缓存不完整或包含已过滤内容".into());
     }
     for (index, market_pet) in pets.iter_mut().enumerate() {
         market_pet.rank = index + 1;
@@ -565,6 +605,31 @@ fn canonical_string(path: &Path) -> Result<String, String> {
 fn has_leader_tag(tags: &[String]) -> bool {
     tags.iter()
         .any(|tag| tag.eq_ignore_ascii_case("leader") || tag.eq_ignore_ascii_case("leaders"))
+}
+
+fn is_disallowed_market_pet(
+    id: &str,
+    display_name: &str,
+    description: &str,
+    tags: &[String],
+) -> bool {
+    if BLOCKED_MARKET_PET_IDS
+        .iter()
+        .any(|blocked| id.eq_ignore_ascii_case(blocked))
+        || has_leader_tag(tags)
+        || tags.iter().any(|tag| {
+            POLITICAL_TAGS
+                .iter()
+                .any(|blocked| tag.eq_ignore_ascii_case(blocked))
+        })
+    {
+        return true;
+    }
+
+    let text = format!("{id} {display_name} {description}").to_lowercase();
+    POLITICAL_TEXT_MARKERS
+        .iter()
+        .any(|marker| text.contains(marker))
 }
 
 fn validate_pet_id(id: &str) -> Result<(), String> {
@@ -598,6 +663,28 @@ mod tests {
         assert!(has_leader_tag(&["cute".into(), "Leaders".into()]));
         assert!(has_leader_tag(&["leader".into()]));
         assert!(!has_leader_tag(&["celeb".into()]));
+    }
+
+    #[test]
+    fn filters_political_pets_even_when_their_tags_are_obfuscated() {
+        assert!(is_disallowed_market_pet(
+            "maozedong",
+            "Kaname Rana",
+            "A whimsical anime creature",
+            &["weird".into(), "spooky".into(), "anime".into()],
+        ));
+        assert!(is_disallowed_market_pet(
+            "candidate",
+            "Public figure",
+            "A former president",
+            &[],
+        ));
+        assert!(!is_disallowed_market_pet(
+            "shogun-dango",
+            "将军团子",
+            "A fantasy game character",
+            &["game".into()],
+        ));
     }
 
     #[test]
@@ -650,7 +737,12 @@ mod tests {
         let pets: Vec<MarketPet> =
             serde_json::from_str(include_str!("../resources/market-catalog.json")).unwrap();
         assert_eq!(pets.len(), 100);
-        assert!(pets.iter().all(|pet| !has_leader_tag(&pet.tags)));
+        assert!(pets.iter().all(|pet| !is_disallowed_market_pet(
+            &pet.id,
+            &pet.display_name,
+            &pet.description,
+            &pet.tags,
+        )));
         let ids: HashSet<_> = pets.iter().map(|pet| &pet.id).collect();
         assert_eq!(ids.len(), 100);
     }

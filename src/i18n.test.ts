@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { animationLabel, translate } from "./i18n";
+import { translate } from "./i18n";
 
 describe("settings translations", () => {
   it("renders one selected language at a time", () => {
@@ -9,9 +9,8 @@ describe("settings translations", () => {
     );
   });
 
-  it("interpolates counts and localizes animation labels", () => {
+  it("interpolates pet counts", () => {
     expect(translate("zh-CN", "localPetCount", { count: 105 })).toBe("105 个宠物");
     expect(translate("en", "localPetCount", { count: 105 })).toBe("105 pets");
-    expect(animationLabel("en", "web-swing")).toBe("Web swing");
   });
 });

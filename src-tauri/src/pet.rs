@@ -15,6 +15,7 @@ const SPIDER_MAN_SELECTION: &str = "builtin:spiderman4";
 const SPIDER_MAN_MANIFEST: &str = include_str!("../resources/pets/spiderman4/pet.json");
 const SPIDER_MAN_SPRITESHEET: &[u8] =
     include_bytes!("../resources/pets/spiderman4/spritesheet.png");
+const HIDDEN_PET_IDS: [&str; 3] = ["spiderman4-sticker", "webby", "maozedong"];
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -68,6 +69,18 @@ pub fn selected_payload(selection: Option<&str>) -> Result<PetPayload, String> {
     match selection {
         Some(SPIDER_MAN_SELECTION) => spider_man_payload(),
         Some(path) => load_payload(Path::new(path)),
+        None => builtin_payload(),
+    }
+}
+
+pub fn preview_payload(selection: Option<&str>) -> Result<PetPayload, String> {
+    match selection {
+        Some(SPIDER_MAN_SELECTION) => spider_man_payload(),
+        Some(path) => {
+            let path = Path::new(path);
+            validate_manifest_file(path)?;
+            load_payload(path)
+        }
         None => builtin_payload(),
     }
 }
@@ -164,7 +177,7 @@ fn extend_choices(choices: &mut HashMap<String, PetChoice>, root: &Path) {
         if !sprite.is_file() {
             return None;
         }
-        (!matches!(manifest.id.as_str(), "spiderman4-sticker" | "webby")).then_some(PetChoice {
+        (!is_hidden_pet_id(&manifest.id)).then_some(PetChoice {
             manifest_path: path.to_string_lossy().into_owned(),
             id: manifest.id,
             display_name: manifest.display_name,
@@ -173,6 +186,12 @@ fn extend_choices(choices: &mut HashMap<String, PetChoice>, root: &Path) {
     }) {
         choices.insert(choice.id.clone(), choice);
     }
+}
+
+fn is_hidden_pet_id(id: &str) -> bool {
+    HIDDEN_PET_IDS
+        .iter()
+        .any(|hidden| id.eq_ignore_ascii_case(hidden))
 }
 
 pub(crate) fn bundled_market_root(app: &AppHandle) -> PathBuf {
@@ -201,13 +220,18 @@ pub fn validate_manifest_path(path: &str) -> Result<String, String> {
         return Ok(SPIDER_MAN_SELECTION.into());
     }
     let path = Path::new(path);
-    if path.file_name().and_then(|value| value.to_str()) != Some("pet.json") {
-        return Err("请选择 Codex Pet 目录中的 pet.json".into());
-    }
+    validate_manifest_file(path)?;
     load_payload(path)?;
     path.canonicalize()
         .map(|value| value.to_string_lossy().into_owned())
         .map_err(|error| error.to_string())
+}
+
+fn validate_manifest_file(path: &Path) -> Result<(), String> {
+    if path.file_name().and_then(|value| value.to_str()) != Some("pet.json") {
+        return Err("请选择 Codex Pet 目录中的 pet.json".into());
+    }
+    Ok(())
 }
 
 pub(crate) fn parse_manifest(raw: &str) -> Result<CodexPetManifest, String> {
@@ -352,6 +376,12 @@ mod tests {
     }
 
     #[test]
+    fn hides_filtered_market_pets_from_local_discovery() {
+        assert!(is_hidden_pet_id("maozedong"));
+        assert!(!is_hidden_pet_id("dewey"));
+    }
+
+    #[test]
     fn bundled_market_contains_one_hundred_valid_unique_pets() {
         let root = Path::new(env!("CARGO_MANIFEST_DIR"))
             .join("resources")
@@ -368,6 +398,7 @@ mod tests {
                 entry.file_name().to_string_lossy(),
                 "folder id must match manifest id"
             );
+            assert!(!is_hidden_pet_id(&payload.manifest.id));
             assert!(ids.insert(payload.manifest.id));
             assert_eq!(payload.columns, 8);
             assert!((9..=11).contains(&payload.rows));
