@@ -15,6 +15,7 @@ import {
 import { createRoot } from "react-dom/client";
 import {
   checkInputMonitoringPermission,
+  requestInputMonitoringPermission,
 } from "tauri-plugin-macos-permissions-api";
 import { animations, galleryPreviewAnimation } from "./animations";
 import {
@@ -34,6 +35,10 @@ import {
 import { Switch } from "./components/motion/switch";
 import { Tabs, TabsList, TabsTrigger } from "./components/motion/tabs";
 import { translate, type Locale } from "./i18n";
+import {
+  INPUT_MONITORING_AUTO_REQUEST_KEY,
+  shouldAutoRequestInputMonitoring,
+} from "./input-permission";
 import { cn } from "./lib/utils";
 import type {
   AnimationName,
@@ -79,6 +84,39 @@ async function checkPermission(platform: string): Promise<boolean> {
     return await checkInputMonitoringPermission();
   } catch {
     return false;
+  }
+}
+
+async function requestInputMonitoringAccess(): Promise<boolean> {
+  await invoke<boolean>("request_input_monitoring_access");
+  const permissionGranted = await checkPermission("macos");
+  if (!permissionGranted) {
+    // IOHIDRequestAccess only presents its guidance dialog once. If macOS has
+    // already recorded a decision, take the user to the exact privacy pane.
+    await requestInputMonitoringPermission();
+  }
+  return permissionGranted;
+}
+
+async function autoRequestInputMonitoring(
+  platform: string,
+  permissionGranted: boolean,
+): Promise<void> {
+  let requestRecorded = false;
+  try {
+    requestRecorded =
+      window.localStorage.getItem(INPUT_MONITORING_AUTO_REQUEST_KEY) === "true";
+  } catch {
+    // A missing WebView storage backend should not block the native permission flow.
+  }
+
+  if (!shouldAutoRequestInputMonitoring(platform, permissionGranted, requestRecorded)) return;
+
+  await requestInputMonitoringAccess();
+  try {
+    window.localStorage.setItem(INPUT_MONITORING_AUTO_REQUEST_KEY, "true");
+  } catch {
+    // The current settings session still guards this call through its one-time init effect.
   }
 }
 
@@ -213,7 +251,13 @@ function SettingsApp() {
       setRuntime(initialRuntime);
       setAutostartEnabled(initialAutostart);
       document.documentElement.lang = initialConfig.locale;
-      setInputPermissionGranted(await checkPermission(initialRuntime.platform));
+      const initialPermission = await checkPermission(initialRuntime.platform);
+      setInputPermissionGranted(initialPermission);
+      try {
+        await autoRequestInputMonitoring(initialRuntime.platform, initialPermission);
+      } catch (error) {
+        console.error("Failed to request Input Monitoring permission automatically", error);
+      }
       await refreshPets(initialConfig.locale, initialConfig.petManifestPath);
     });
 
@@ -320,8 +364,9 @@ function SettingsApp() {
 
   const handlePermission = async () => {
     try {
-      await invoke<boolean>("request_input_monitoring_access");
-      notify(tx("permissionRequested"));
+      const permissionGranted = await requestInputMonitoringAccess();
+      setInputPermissionGranted(permissionGranted);
+      notify(permissionGranted ? tx("authorized") : tx("permissionRequested"));
       window.setTimeout(() => {
         void checkPermission("macos").then(setInputPermissionGranted);
       }, 600);
