@@ -6,14 +6,12 @@ Con Pet is an always-available desktop companion for Windows and macOS. When you
 
 ## Features
 
-- Observes only newly typed keys. The default keyword is `codex`, and English matching is case-insensitive.
-- Does not read existing input-field content, use OCR, access the clipboard, or persist keystrokes and matching buffers.
+- Observes only newly typed keys. The default keyword is `mj`, the default pet is `mj` (Michael Jackson), and English matching is case-insensitive.
 - Keeps at most one keyword-length buffer. Backspace removes one character; shortcuts, spaces, Enter, and other control keys interrupt the sequence; stale input expires after the configured timeout.
 - Reliably supports physical English A–Z keys on Windows and macOS. Unicode text can also match when the platform hook supplies committed text, but most Chinese IMEs expose only their physical Pinyin keys to a global hook.
-- Bundles 100 popular Codex Pets for offline use, excluding Leaders and known political-person content, and also discovers `~/.codex/pets/*/pet.json` automatically.
+- Bundles 100 popular Codex Pets for offline use and also discovers `~/.codex/pets/*/pet.json` automatically.
 - Includes a visual pet gallery with search, animated hover previews, and direct import of a standard Pet ZIP.
 - Randomly selects among the nine standard Codex Pet animation states on each trigger, avoiding immediate repeats.
-- Includes a larger `Spider-Man 4 · Wire Swing` animation that swings from the top center of the screen.
 - Supports 0.4–2.5× scaling, configurable loops, multi-monitor targeting, corners, top-center, random placement, and fixed coordinates.
 - Uses a transparent, always-on-top, click-through overlay that never steals typing focus.
 - Keeps running in the system tray after the settings window closes and offers configurable launch at login.
@@ -46,7 +44,7 @@ Example `pet.json`:
 }
 ```
 
-The standard atlas is `1536×1872`: 8 columns × 9 rows, with each frame measuring `192×208`. Rows represent idle, running right, running left, waving, jumping, failed, waiting, running, and review. Con Pet also supports the current 8×10 and 8×11 extended Codex Pet atlases without vertically squeezing them. `Spider-Man 4 · Wire Swing` stores 20 consecutive frames across the first three rows.
+The standard atlas is `1536×1872`: 8 columns × 9 rows, with each frame measuring `192×208`. Rows represent idle, running right, running left, waving, jumping, failed, waiting, running, and review. Con Pet also supports the current 8×10 and 8×11 extended Codex Pet atlases without vertically squeezing them. The bundled Spider-Man effects use an 8×11 atlas with 83 consecutive source frames.
 
 ## Local Development
 

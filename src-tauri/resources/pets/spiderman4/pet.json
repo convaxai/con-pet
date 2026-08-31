@@ -1,6 +1,6 @@
 {
   "id": "spiderman4-sticker",
-  "displayName": "蜘蛛侠 4 · 吊线摆荡",
-  "description": "The recent Spider-Man 4 limited sticker swings in from two overhead wires.",
+  "displayName": "Spider-Man 4 · Animated Effects",
+  "description": "Randomly plays web-swing, upside-down, heart, and crying animations.",
   "spritesheetPath": "spritesheet.png"
 }

@@ -35,6 +35,10 @@ export type AnimationName =
   | "jumping"
   | "failed"
   | "web-swing"
+  | "spider-upside-down"
+  | "spider-heart"
+  | "spider-crying"
+  | "spider-showcase"
   | "waiting"
   | "running"
   | "review";

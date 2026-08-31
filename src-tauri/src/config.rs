@@ -61,7 +61,7 @@ impl Default for AppConfig {
         Self {
             locale: AppLocale::ZhCn,
             enabled: true,
-            keyword: "codex".into(),
+            keyword: "mj".into(),
             cooldown_ms: 1_200,
             sequence_timeout_ms: 3_000,
             loops: 2,
@@ -181,7 +181,10 @@ mod tests {
 
     #[test]
     fn defaults_are_valid() {
-        assert!(AppConfig::default().normalize_and_validate().is_ok());
+        let config = AppConfig::default();
+        assert_eq!(config.keyword, "mj");
+        assert_eq!(config.pet_manifest_path, None);
+        assert!(config.normalize_and_validate().is_ok());
     }
 
     #[test]
