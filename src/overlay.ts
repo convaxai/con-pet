@@ -9,7 +9,7 @@ import {
   primaryMonitor,
   type Monitor,
 } from "@tauri-apps/api/window";
-import { animations, randomTriggerAnimation, webLineLength } from "./animations";
+import { animations, randomTriggerAnimation } from "./animations";
 import type { SpriteFrame } from "./animations";
 import { computePosition } from "./positioning";
 import type { AnimationName, AppConfig, PetPayload } from "./types";
@@ -27,12 +27,11 @@ const decodedSpritesheets = new Map<string, Promise<void>>();
 export async function renderOverlay(): Promise<void> {
   document.body.className = "overlay-body";
   document.body.innerHTML =
-    '<div id="scene" aria-hidden="true"><div id="web-line"></div><div id="motion"><div id="sprite"></div></div></div>';
+    '<div id="scene" aria-hidden="true"><div id="motion"><div id="sprite"></div></div></div>';
   const scene = document.querySelector<HTMLDivElement>("#scene");
-  const webLine = document.querySelector<HTMLDivElement>("#web-line");
   const motion = document.querySelector<HTMLDivElement>("#motion");
   const sprite = document.querySelector<HTMLDivElement>("#sprite");
-  if (!scene || !webLine || !motion || !sprite) return;
+  if (!scene || !motion || !sprite) return;
 
   const overlay = getCurrentWindow();
   // CSS transparency is required on every platform. These native calls also
@@ -59,8 +58,8 @@ export async function renderOverlay(): Promise<void> {
       await overlay.hide();
       scene.style.opacity = "0";
       await placeOverlay(config, pet, animation);
-      configureSprite(webLine, motion, sprite, config, pet, animation);
-      applyFrame(webLine, motion, sprite, config, pet, animations[animation].frames[0]);
+      configureSprite(motion, sprite, config, pet, animation);
+      applyFrame(motion, sprite, pet, animations[animation].frames[0]);
       // The native command re-applies the macOS fullscreen-space behavior and
       // orders the overlay above the active app without taking keyboard focus.
       await invoke("show_overlay");
@@ -69,7 +68,6 @@ export async function renderOverlay(): Promise<void> {
       scene.style.opacity = "1";
       await invoke("report_overlay_rendered");
       await play(
-        webLine,
         motion,
         sprite,
         config,
@@ -93,7 +91,6 @@ export async function renderOverlay(): Promise<void> {
 }
 
 function configureSprite(
-  webLine: HTMLDivElement,
   motion: HTMLDivElement,
   sprite: HTMLDivElement,
   config: AppConfig,
@@ -106,9 +103,7 @@ function configureSprite(
   motion.style.width = `${pet.frameWidth * config.scale}px`;
   motion.style.height = `${pet.frameHeight * config.scale}px`;
   motion.style.transform = "none";
-  webLine.style.left = `${padding.x / 2 + (pet.frameWidth * config.scale) / 2}px`;
-  webLine.style.height = "0";
-  webLine.style.opacity = "0";
+  motion.style.clipPath = "none";
   sprite.style.width = `${pet.frameWidth}px`;
   sprite.style.height = `${pet.frameHeight}px`;
   sprite.style.backgroundImage = `url("${pet.spritesheetDataUrl}")`;
@@ -135,23 +130,21 @@ function preloadSpritesheet(source: string): Promise<void> {
 }
 
 function applyFrame(
-  webLine: HTMLDivElement,
   motion: HTMLDivElement,
   sprite: HTMLDivElement,
-  config: AppConfig,
   pet: PetPayload,
   frame: SpriteFrame,
 ): void {
   sprite.style.backgroundPosition = `${-frame.column * pet.frameWidth}px ${-frame.row * pet.frameHeight}px`;
   motion.style.transformOrigin = frame.transformOrigin ?? "50% 0";
   motion.style.transform = `translate(${frame.offsetX ?? 0}px, ${frame.offsetY ?? 0}px) rotate(${frame.rotation ?? 0}deg)`;
-  const webLength = webLineLength(frame, config.scale);
-  webLine.style.height = `${webLength}px`;
-  webLine.style.opacity = webLength > 1 ? "0.92" : "0";
+  motion.style.clipPath =
+    frame.reveal === undefined
+      ? "none"
+      : `inset(0 0 ${Number(((1 - frame.reveal) * 100).toFixed(2))}% 0)`;
 }
 
 async function play(
-  webLine: HTMLDivElement,
   motion: HTMLDivElement,
   sprite: HTMLDivElement,
   config: AppConfig,
@@ -164,7 +157,7 @@ async function play(
   for (let loop = 0; loop < config.loops; loop += 1) {
     for (const frame of animation.frames) {
       if (generation !== currentGeneration()) return;
-      applyFrame(webLine, motion, sprite, config, pet, frame);
+      applyFrame(motion, sprite, pet, frame);
       await sleep(frame.duration);
     }
   }
@@ -207,7 +200,7 @@ async function placeOverlay(
 
 function motionPadding(animation: AnimationName): { x: number; y: number } {
   if (animation === "web-swing") return { x: 180, y: 52 };
-  if (animation === "spider-upside-down") return { x: 0, y: 180 };
+  if (animation === "spider-upside-down") return { x: 0, y: 0 };
   if (animation === "spider-heart") return { x: 0, y: 12 };
   if (animation === "spider-crying") return { x: 12, y: 0 };
   return { x: 0, y: 0 };

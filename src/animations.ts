@@ -12,7 +12,7 @@ export interface SpriteFrame {
   offsetY?: number;
   rotation?: number;
   transformOrigin?: string;
-  webAnchorY?: number;
+  reveal?: number;
 }
 
 const rowFrames = (row: number, durations: readonly number[]): SpriteFrame[] =>
@@ -23,11 +23,6 @@ const atlasFrame = (frameIndex: number, duration: number): SpriteFrame => ({
   row: Math.floor(frameIndex / 8),
   duration,
 });
-
-export function webLineLength(frame: SpriteFrame, scale: number): number {
-  if (frame.webAnchorY === undefined) return 0;
-  return Math.max(0, (frame.offsetY ?? 0) + frame.webAnchorY * scale);
-}
 
 const spiderManSwingOrder = [
   // Atlas cell 0 contains only a few stray web pixels and is visually empty.
@@ -55,41 +50,34 @@ const repeatedRange = (start: number, count: number, repeats = 2): number[] =>
     Array.from({ length: count }, (_, index) => start + index),
   ).flat();
 
-// Reuse the complete body-and-wave sequence from the swing sticker. Cells
-// 20-40 are close-up reaction heads and made the upside-down entrance look
-// detached. The forward/reverse/forward order keeps the waving hand fluid.
+// Cells 20-32 are official-effect frames. Each cell already contains one
+// uninterrupted screen-top web plus the feet, hands, body, and oversized head.
+// The overlay only reveals the complete cell; it never draws or joins a web.
 const spiderManUpsideDownOrder = [
-  ...Array.from({ length: 18 }, (_, index) => index + 2),
-  ...Array.from({ length: 17 }, (_, index) => 18 - index),
-  ...Array.from({ length: 17 }, (_, index) => index + 3),
+  ...Array.from({ length: 13 }, (_, index) => index),
+  ...Array.from({ length: 11 }, (_, index) => 11 - index),
+  ...Array.from({ length: 11 }, (_, index) => index + 2),
+  ...Array.from({ length: 12 }, (_, index) => 11 - index),
 ];
 const spiderManUpsideDownFrames: SpriteFrame[] = spiderManUpsideDownOrder.map(
-  (frameIndex, index) => {
+  (poseIndex, index) => {
     const progress = index / (spiderManUpsideDownOrder.length - 1);
-    const hiddenY = -360;
-    const hangingY = 128;
-    let offsetY: number;
-    if (progress < 0.28) {
-      const descend = progress / 0.28;
-      offsetY = hiddenY + (1 - (1 - descend) ** 3) * (hangingY - hiddenY);
-    } else if (progress < 0.72) {
-      const bob = (progress - 0.28) / 0.44;
-      offsetY = hangingY + Math.sin(bob * Math.PI * 4) * 8;
+    let reveal: number;
+    if (progress < 0.22) {
+      const descend = progress / 0.22;
+      reveal = 1 - (1 - descend) ** 3;
+    } else if (progress < 0.78) {
+      reveal = 1;
     } else {
-      const retract = (progress - 0.72) / 0.28;
-      offsetY = hangingY - retract ** 3 * (hangingY - hiddenY);
+      const retract = (progress - 0.78) / 0.22;
+      reveal = 1 - retract ** 3;
     }
     return {
       ...atlasFrame(
-        frameIndex,
-        index === 0 || index === spiderManUpsideDownOrder.length - 1 ? 170 : 105,
+        20 + poseIndex,
+        index === 0 || index === spiderManUpsideDownOrder.length - 1 ? 170 : 120,
       ),
-      offsetY: Math.round(offsetY),
-      rotation: 180,
-      transformOrigin: "50% 50%",
-      // The complete inverted body starts about 32 source pixels below the
-      // rotated cell edge. Terminate the web there rather than across the face.
-      webAnchorY: 32,
+      reveal: Number(reveal.toFixed(4)),
     };
   },
 );
