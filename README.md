@@ -6,7 +6,7 @@ Con Pet is an always-available desktop companion for Windows and macOS. When you
 
 ## Features
 
-- Observes only newly typed keys. The default keyword is `mj`, the default pet is `mj` (Michael Jackson), and English matching is case-insensitive.
+- Observes only newly typed keys. The default keyword is `mj`, the default pet is Spider-Man 4, and English matching is case-insensitive.
 - Keeps at most one keyword-length buffer. Backspace removes one character; shortcuts, spaces, Enter, and other control keys interrupt the sequence; stale input expires after the configured timeout.
 - Reliably supports physical English A–Z keys on Windows and macOS. Unicode text can also match when the platform hook supplies committed text, but most Chinese IMEs expose only their physical Pinyin keys to a global hook.
 - Bundles 100 popular Codex Pets for offline use and also discovers `~/.codex/pets/*/pet.json` automatically.
