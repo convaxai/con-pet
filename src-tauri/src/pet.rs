@@ -9,13 +9,22 @@ use std::{
 };
 use tauri::{AppHandle, Manager};
 
-const BUILTIN_MANIFEST: &str = include_str!("../resources/pets/pathlight/pet.json");
-const BUILTIN_SPRITESHEET: &[u8] = include_bytes!("../resources/pets/pathlight/spritesheet.webp");
+const DEFAULT_MANIFEST: &str = include_str!("../resources/pets/mj/pet.json");
+const DEFAULT_SPRITESHEET: &[u8] = include_bytes!("../resources/pets/mj/spritesheet.webp");
+const PATHLIGHT_SELECTION: &str = "builtin:pathlight";
+const PATHLIGHT_MANIFEST: &str = include_str!("../resources/pets/pathlight/pet.json");
+const PATHLIGHT_SPRITESHEET: &[u8] = include_bytes!("../resources/pets/pathlight/spritesheet.webp");
 const SPIDER_MAN_SELECTION: &str = "builtin:spiderman4";
 const SPIDER_MAN_MANIFEST: &str = include_str!("../resources/pets/spiderman4/pet.json");
 const SPIDER_MAN_SPRITESHEET: &[u8] =
     include_bytes!("../resources/pets/spiderman4/spritesheet.png");
-const HIDDEN_PET_IDS: [&str; 3] = ["spiderman4-sticker", "webby", "maozedong"];
+const HIDDEN_PET_IDS: [&str; 5] = [
+    "mj",
+    "pathlight",
+    "spiderman4-sticker",
+    "webby",
+    "maozedong",
+];
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -56,8 +65,13 @@ pub struct PetThumbnail {
 }
 
 pub fn builtin_payload() -> Result<PetPayload, String> {
-    let manifest = parse_manifest(BUILTIN_MANIFEST)?;
-    payload(manifest, BUILTIN_SPRITESHEET, "image/webp")
+    let manifest = parse_manifest(DEFAULT_MANIFEST)?;
+    payload(manifest, DEFAULT_SPRITESHEET, "image/webp")
+}
+
+fn pathlight_payload() -> Result<PetPayload, String> {
+    let manifest = parse_manifest(PATHLIGHT_MANIFEST)?;
+    payload(manifest, PATHLIGHT_SPRITESHEET, "image/webp")
 }
 
 fn spider_man_payload() -> Result<PetPayload, String> {
@@ -67,6 +81,7 @@ fn spider_man_payload() -> Result<PetPayload, String> {
 
 pub fn selected_payload(selection: Option<&str>) -> Result<PetPayload, String> {
     match selection {
+        Some(PATHLIGHT_SELECTION) => pathlight_payload(),
         Some(SPIDER_MAN_SELECTION) => spider_man_payload(),
         Some(path) => load_payload(Path::new(path)),
         None => builtin_payload(),
@@ -75,6 +90,7 @@ pub fn selected_payload(selection: Option<&str>) -> Result<PetPayload, String> {
 
 pub fn preview_payload(selection: Option<&str>) -> Result<PetPayload, String> {
     match selection {
+        Some(PATHLIGHT_SELECTION) => pathlight_payload(),
         Some(SPIDER_MAN_SELECTION) => spider_man_payload(),
         Some(path) => {
             let path = Path::new(path);
@@ -87,6 +103,10 @@ pub fn preview_payload(selection: Option<&str>) -> Result<PetPayload, String> {
 
 pub fn selected_thumbnail(selection: Option<&str>) -> Result<PetThumbnail, String> {
     let (manifest, image) = match selection {
+        Some(PATHLIGHT_SELECTION) => (
+            parse_manifest(PATHLIGHT_MANIFEST)?,
+            PATHLIGHT_SPRITESHEET.to_vec(),
+        ),
         Some(SPIDER_MAN_SELECTION) => (
             parse_manifest(SPIDER_MAN_MANIFEST)?,
             SPIDER_MAN_SPRITESHEET.to_vec(),
@@ -106,8 +126,8 @@ pub fn selected_thumbnail(selection: Option<&str>) -> Result<PetThumbnail, Strin
             (manifest, image)
         }
         None => (
-            parse_manifest(BUILTIN_MANIFEST)?,
-            BUILTIN_SPRITESHEET.to_vec(),
+            parse_manifest(DEFAULT_MANIFEST)?,
+            DEFAULT_SPRITESHEET.to_vec(),
         ),
     };
     let image_data_url = representative_frame_data_url(&image)?;
@@ -147,13 +167,22 @@ pub fn load_payload(path: &Path) -> Result<PetPayload, String> {
 pub fn discover(app: &AppHandle) -> Vec<PetChoice> {
     let mut choices = HashMap::new();
     choices.insert(
+        "pathlight".to_string(),
+        PetChoice {
+            manifest_path: PATHLIGHT_SELECTION.into(),
+            id: "pathlight".into(),
+            display_name: "Pathlight".into(),
+            description: "A calm evidence-first builder companion.".into(),
+        },
+    );
+    choices.insert(
         "spiderman4-sticker".to_string(),
         PetChoice {
             manifest_path: SPIDER_MAN_SELECTION.into(),
             id: "spiderman4-sticker".into(),
-            display_name: "蜘蛛侠 4 · 吊线摆荡".into(),
-            description:
-                "The recent Spider-Man 4 limited sticker swings in from two overhead wires.".into(),
+            display_name: "Spider-Man 4 · Animated Effects".into(),
+            description: "Randomly plays web-swing, upside-down, heart, and crying animations."
+                .into(),
         },
     );
     extend_choices(&mut choices, &bundled_market_root(app));
@@ -215,6 +244,10 @@ pub(crate) fn bundled_manifest_path(app: &AppHandle, id: &str) -> Option<PathBuf
 }
 
 pub fn validate_manifest_path(path: &str) -> Result<String, String> {
+    if path == PATHLIGHT_SELECTION {
+        pathlight_payload()?;
+        return Ok(PATHLIGHT_SELECTION.into());
+    }
     if path == SPIDER_MAN_SELECTION {
         spider_man_payload()?;
         return Ok(SPIDER_MAN_SELECTION.into());
@@ -331,11 +364,24 @@ mod tests {
     use std::collections::HashSet;
 
     #[test]
-    fn bundled_pet_is_valid() {
+    fn bundled_default_pet_is_mj() {
         let pet = builtin_payload().unwrap();
+        assert_eq!(pet.manifest.id, "mj");
+        assert_eq!(pet.frame_width * pet.columns, 1536);
+        assert_eq!(pet.frame_height * pet.rows, 2288);
+        assert!(!pet.spritesheet_data_url.is_empty());
+    }
+
+    #[test]
+    fn bundled_pathlight_remains_selectable() {
+        let pet = selected_payload(Some(PATHLIGHT_SELECTION)).unwrap();
+        assert_eq!(pet.manifest.id, "pathlight");
         assert_eq!(pet.frame_width * pet.columns, 1536);
         assert_eq!(pet.frame_height * pet.rows, 1872);
-        assert!(!pet.spritesheet_data_url.is_empty());
+        assert_eq!(
+            validate_manifest_path(PATHLIGHT_SELECTION).unwrap(),
+            PATHLIGHT_SELECTION
+        );
     }
 
     #[test]
@@ -343,7 +389,7 @@ mod tests {
         let pet = selected_payload(Some(SPIDER_MAN_SELECTION)).unwrap();
         assert_eq!(pet.manifest.id, "spiderman4-sticker");
         assert_eq!(pet.frame_width * pet.columns, 1536);
-        assert_eq!(pet.frame_height * pet.rows, 1872);
+        assert_eq!(pet.frame_height * pet.rows, 2288);
         assert_eq!(
             validate_manifest_path(SPIDER_MAN_SELECTION).unwrap(),
             SPIDER_MAN_SELECTION

@@ -13,4 +13,11 @@ describe("settings translations", () => {
     expect(translate("zh-CN", "localPetCount", { count: 105 })).toBe("105 个宠物");
     expect(translate("en", "localPetCount", { count: 105 })).toBe("105 pets");
   });
+
+  it("localizes the bundled Spider-Man effects", () => {
+    expect(translate("zh-CN", "spiderManPetName")).toBe("蜘蛛侠 4 · 动态彩蛋");
+    expect(translate("en", "spiderManPetName")).toBe(
+      "Spider-Man 4 · Animated Effects",
+    );
+  });
 });

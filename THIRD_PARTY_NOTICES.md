@@ -46,6 +46,8 @@ Con Pet uses or studies the following open-source projects. The project does not
 
 ## Codex Pet assets
 
+The bundled Michael Jackson (`mj`) spritesheet was created by Schwifty and obtained from its publicly listed Codex Pet package: https://www.aimcp.info/en/codex-pets/michael-jackson-f11a919e. The listing reports its license as unknown. Michael Jackson and the spritesheet artwork are not covered by the Con Pet MIT License; do not redistribute this asset without permission.
+
 The bundled Pathlight spritesheet was reused from the user's local Codex Pet directory at their request. Image rights are not granted by the Con Pet MIT License; anyone redistributing a build must ensure they have the right to distribute its bundled or selected pet assets.
 
-The bundled `Spider-Man 4 · Wire Swing` spritesheet was adapted from a publicly shared copy of the August 2026 Douyin limited animated sticker for *Spider-Man: Brand New Day*: https://www.sina.cn/news/detail/5329309080225035.html. Its white background was removed and its 20 frames were repacked into the Codex Pet grid for this local prototype. Spider-Man and the sticker artwork belong to their respective rights holders and are not covered by the Con Pet MIT License; do not redistribute this asset without permission.
+The bundled Spider-Man 4 effects were adapted from publicly shared copies of August 2026 animated stickers for *Spider-Man: Brand New Day*: https://www.sina.cn/news/detail/5329309080225035.html. White backgrounds were removed and 83 source frames were repacked into the extended Codex Pet grid for this local prototype. The upside-down entrance reuses the complete full-body waving sequence with top-entry motion and a separately rendered web line. Spider-Man and the sticker artwork belong to their respective rights holders and are not covered by the Con Pet MIT License; do not redistribute these assets without permission.
