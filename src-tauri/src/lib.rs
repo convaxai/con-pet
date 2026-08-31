@@ -26,6 +26,12 @@ unsafe extern "C" {
     fn IOHIDRequestAccess(request_type: u32) -> bool;
 }
 
+#[cfg(target_os = "macos")]
+#[link(name = "AppKit", kind = "framework")]
+unsafe extern "C" {
+    static NSAppKitVersionNumber: f64;
+}
+
 #[derive(Clone)]
 struct AppState {
     config: Arc<RwLock<AppConfig>>,
@@ -223,6 +229,14 @@ fn report_overlay_rendered(state: State<'_, AppState>) {
 #[tauri::command]
 fn report_overlay_ready(state: State<'_, AppState>) {
     state.overlay_ready.store(true, Ordering::Relaxed);
+}
+
+#[tauri::command]
+fn show_overlay(app: AppHandle) -> Result<(), String> {
+    let overlay = app
+        .get_webview_window("overlay")
+        .ok_or_else(|| "Overlay window is unavailable".to_string())?;
+    configure_overlay(&overlay, true).map_err(|error| error.to_string())
 }
 
 #[tauri::command]
@@ -539,22 +553,70 @@ fn show_settings(app: &AppHandle) {
 }
 
 #[cfg(target_os = "macos")]
-fn configure_overlay_level(window: &tauri::WebviewWindow) {
-    use objc::{msg_send, runtime::Object, sel, sel_impl};
-    if let Ok(pointer) = window.ns_window() {
-        let pointer = pointer as usize;
-        let _ = window.run_on_main_thread(move || unsafe {
-            let pointer = pointer as *mut Object;
-            let _: () = msg_send![pointer, setLevel: 1000_i64];
-            // CanJoinAllSpaces | Stationary | FullScreenAuxiliary.
-            let behavior: u64 = (1 << 0) | (1 << 4) | (1 << 8);
-            let _: () = msg_send![pointer, setCollectionBehavior: behavior];
-        });
+const APPKIT_VERSION_MACOS_13: f64 = 2299.0;
+
+#[cfg(target_os = "macos")]
+fn overlay_collection_behavior(appkit_version: f64) -> u64 {
+    // CanJoinAllSpaces | Stationary | FullScreenAuxiliary.
+    let mut behavior = (1 << 0) | (1 << 4) | (1 << 8);
+    if appkit_version >= APPKIT_VERSION_MACOS_13 {
+        // CanJoinAllApplications is the cross-app fullscreen/Stage Manager
+        // behavior intended for floating windows and system overlays.
+        behavior |= 1 << 18;
     }
+    behavior
+}
+
+#[cfg(target_os = "macos")]
+fn configure_overlay(window: &tauri::WebviewWindow, order_front: bool) -> tauri::Result<()> {
+    use objc::{
+        msg_send,
+        runtime::{Object, NO},
+        sel, sel_impl,
+    };
+
+    let pointer = window.ns_window()? as usize;
+    let appkit_version = unsafe { NSAppKitVersionNumber };
+    let behavior = overlay_collection_behavior(appkit_version);
+    window.run_on_main_thread(move || unsafe {
+        let pointer = pointer as *mut Object;
+        // Screen-saver level keeps the animation above normal and fullscreen
+        // app windows without using the system shielding/lock-screen level.
+        let _: () = msg_send![pointer, setLevel: 1000_i64];
+        let _: () = msg_send![pointer, setCollectionBehavior: behavior];
+        let _: () = msg_send![pointer, setHidesOnDeactivate: NO];
+        let _: () = msg_send![pointer, setCanHide: NO];
+        if order_front {
+            // Unlike Tauri's normal show path, this works while another app is
+            // active and does not make the click-through overlay key.
+            let _: () = msg_send![pointer, orderFrontRegardless];
+        }
+    })
 }
 
 #[cfg(not(target_os = "macos"))]
-fn configure_overlay_level(_window: &tauri::WebviewWindow) {}
+fn configure_overlay(window: &tauri::WebviewWindow, order_front: bool) -> tauri::Result<()> {
+    if order_front {
+        window.show()?;
+    }
+    Ok(())
+}
+
+#[cfg(all(test, target_os = "macos"))]
+mod overlay_tests {
+    use super::{overlay_collection_behavior, APPKIT_VERSION_MACOS_13};
+
+    const CAN_JOIN_ALL_APPLICATIONS: u64 = 1 << 18;
+
+    #[test]
+    fn enables_cross_app_fullscreen_behavior_on_macos_13_and_newer() {
+        let before_macos_13 = overlay_collection_behavior(APPKIT_VERSION_MACOS_13 - 0.1);
+        let macos_13 = overlay_collection_behavior(APPKIT_VERSION_MACOS_13);
+
+        assert_eq!(before_macos_13 & CAN_JOIN_ALL_APPLICATIONS, 0);
+        assert_ne!(macos_13 & CAN_JOIN_ALL_APPLICATIONS, 0);
+    }
+}
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
@@ -587,7 +649,7 @@ pub fn run() {
 
             if let Some(overlay) = app.get_webview_window("overlay") {
                 overlay.set_ignore_cursor_events(true)?;
-                configure_overlay_level(&overlay);
+                configure_overlay(&overlay, false)?;
             }
             input::start(app.handle().clone(), state);
             if std::env::args().any(|argument| argument == "--background") {
@@ -621,6 +683,7 @@ pub fn run() {
             test_trigger,
             report_overlay_rendered,
             report_overlay_ready,
+            show_overlay,
             list_market_pets,
             install_market_pet,
             install_top_market_pets,

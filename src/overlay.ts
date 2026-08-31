@@ -61,7 +61,9 @@ export async function renderOverlay(): Promise<void> {
       await placeOverlay(config, pet, animation);
       configureSprite(webLine, motion, sprite, config, pet, animation);
       applyFrame(webLine, motion, sprite, config, pet, animations[animation].frames[0]);
-      await overlay.show();
+      // The native command re-applies the macOS fullscreen-space behavior and
+      // orders the overlay above the active app without taking keyboard focus.
+      await invoke("show_overlay");
       await nextPaint();
       if (generation !== currentGeneration) return;
       scene.style.opacity = "1";
