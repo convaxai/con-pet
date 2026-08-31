@@ -1,23 +1,27 @@
 # Con Pet
 
-Con Pet 是一个 Windows / macOS 桌面常驻应用：当用户在任意应用中连续键入配置的关键词时，在屏幕上播放一段宠物序列帧动画。
+[English](README.md) | [简体中文](README.zh-CN.md)
 
-## 当前能力
+Con Pet is an always-available desktop companion for Windows and macOS. When you type a configured keyword in any application, Con Pet plays a transparent, click-through pet animation on your screen.
 
-- 全局监听最近键入的字符，默认关键字为 `codex`，忽略英文大小写。
-- 不读取输入框已有内容，不做 OCR，不读取剪贴板，不把按键或匹配缓冲写入磁盘。
-- 匹配缓冲最多保留关键字长度；退格会撤回一个字符，快捷键、空格、回车等会中断序列，超时后旧序列不能参与匹配。
-- 英文 A–Z 在 Windows 和 macOS 上稳定支持。若系统事件 Hook 直接提供 Unicode 提交文本，也会匹配中文；主流中文输入法通常只向 Hook 暴露拼音键，因此不保证最终上屏汉字。
-- 随包内置 Codex Pets Liked Top 100（过滤 Leaders），离线可选；同时自动发现 `~/.codex/pets/*/pet.json`。
-- 独立 Pet 图鉴提供本地预览、在线排行、搜索、单个安装、批量安装和标准 ZIP 直接导入。
-- 支持 9 个标准动作和“蜘蛛侠 4 · 吊线摆荡”、动画循环次数、0.4–2.5 倍缩放。
-- 内置近期《蜘蛛侠：崭新之日》限时动态表情的吊线摆荡款；选中后自动使用 1.6 倍大小、屏幕顶部居中、摆荡一次。
-- 支持鼠标所在屏、主屏或随机屏幕；位置可选四角、顶部居中、随机或固定坐标。
-- 动画窗口透明、置顶、鼠标穿透，不抢夺当前输入焦点；设置窗关闭后应用继续驻留托盘。
+## Features
 
-## 序列帧格式
+- Observes only newly typed keys. The default keyword is `codex`, and English matching is case-insensitive.
+- Does not read existing input-field content, use OCR, access the clipboard, or persist keystrokes and matching buffers.
+- Keeps at most one keyword-length buffer. Backspace removes one character; shortcuts, spaces, Enter, and other control keys interrupt the sequence; stale input expires after the configured timeout.
+- Reliably supports physical English A–Z keys on Windows and macOS. Unicode text can also match when the platform hook supplies committed text, but most Chinese IMEs expose only their physical Pinyin keys to a global hook.
+- Bundles 100 popular Codex Pets for offline use, excluding Leaders and known political-person content, and also discovers `~/.codex/pets/*/pet.json` automatically.
+- Includes a visual pet gallery with search, animated hover previews, and direct import of a standard Pet ZIP.
+- Randomly selects among the nine standard Codex Pet animation states on each trigger, avoiding immediate repeats.
+- Includes a larger `Spider-Man 4 · Wire Swing` animation that swings from the top center of the screen.
+- Supports 0.4–2.5× scaling, configurable loops, multi-monitor targeting, corners, top-center, random placement, and fixed coordinates.
+- Uses a transparent, always-on-top, click-through overlay that never steals typing focus.
+- Keeps running in the system tray after the settings window closes and offers configurable launch at login.
+- Provides separate English and Simplified Chinese interfaces.
 
-Con Pet 直接兼容 Codex Pet 的标准包：
+## Pet Package Format
+
+Con Pet is directly compatible with the standard Codex Pet package:
 
 ```text
 my-pet/
@@ -25,7 +29,7 @@ my-pet/
 └── spritesheet.webp
 ```
 
-`pet.json` 示例：
+Example `pet.json`:
 
 ```json
 {
@@ -36,11 +40,11 @@ my-pet/
 }
 ```
 
-标准图集为 `1536×1872`，共 8 列 × 9 行，每格 `192×208`。动作行依次为：待机、向右跑、向左跑、挥手、跳跃、失败、等待、小跑、检查。也兼容 Codex Pets 当前使用的 8×10 / 8×11 扩展图集，不会纵向压缩。“蜘蛛侠 4 · 吊线摆荡”使用前三行连续存放 20 帧。
+The standard atlas is `1536×1872`: 8 columns × 9 rows, with each frame measuring `192×208`. Rows represent idle, running right, running left, waving, jumping, failed, waiting, running, and review. Con Pet also supports the current 8×10 and 8×11 extended Codex Pet atlases without vertically squeezing them. `Spider-Man 4 · Wire Swing` stores 20 consecutive frames across the first three rows.
 
-## 本地开发
+## Local Development
 
-依赖：Node.js 20+、pnpm 10+、Rust stable，以及 Tauri 2 对应平台的系统依赖。
+Requirements: Node.js 20+, pnpm 10+, stable Rust, and the platform dependencies required by Tauri 2.
 
 ```bash
 pnpm install
@@ -50,43 +54,46 @@ cargo test --manifest-path src-tauri/Cargo.toml
 pnpm tauri dev
 ```
 
-构建安装包：
+Build an installer:
 
 ```bash
 pnpm tauri build
 ```
 
-macOS 首次运行需要在“系统设置 → 隐私与安全性 → 输入监控”中允许 Con Pet，然后重启应用。应用不需要屏录制权限。
+On first launch, macOS users must allow Con Pet under **System Settings → Privacy & Security → Input Monitoring**, then restart the app. Screen Recording permission is not required.
 
-macOS 的输入监控授权与代码签名的 designated requirement 绑定。ad-hoc 开发构建会把 requirement 绑定到当前 CDHash，因此普通退出/重启不会丢失授权，但每次重新编译并替换 `.app` 后都需要重新授权。稳定发布必须使用同一个 Apple Development 或 Developer ID Application 证书签名；可先用 `security find-identity -v -p codesigning` 检查本机身份。这个限制来自 macOS TCC，不是全局监听实现主动重置权限。
+macOS binds Input Monitoring approval to the application's code-signing designated requirement. Ad-hoc development builds bind that requirement to the current CDHash: normal quit/relaunch keeps permission, but rebuilding and replacing the `.app` requires approval again. Stable releases must use the same Apple Development or Developer ID Application certificate. You can inspect local identities with `security find-identity -v -p codesigning`. This behavior comes from macOS TCC rather than Con Pet resetting permission.
 
-当前随包 Top 100 资源约 170 MiB，arm64 macOS `.app` 实测约 186 MiB。资源直接从应用包读取，首次启动不会再复制到用户目录。
+The bundled 100-Pet catalog is roughly 170 MiB, and the arm64 macOS `.app` is roughly 186 MiB. Assets are read directly from the application bundle and are not copied into the user directory on first launch.
 
-### 原生输入链路自测
+## Implementation
 
-Debug 构建提供一个显式环境变量，用 `rdev` 在系统事件层发送当前英文关键字，验证全局 Hook → 匹配器 → 浮层的完整链路：
+- [Tauri 2](https://github.com/tauri-apps/tauri) provides cross-platform windows, tray integration, events, and packaging.
+- [keytap](https://github.com/jamiepine/keytap) provides the observe-only global keyboard event stream.
+- [tauri-plugin-macos-permissions](https://github.com/ayangweb/tauri-plugin-macos-permissions) checks and opens the macOS Input Monitoring permission flow.
+- React, Tailwind CSS, and Motion power the settings UI and animation components.
 
-```bash
-PC_PET_NATIVE_INPUT_SELF_TEST=1 pnpm tauri dev
-```
+See [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) for detailed dependency and licensing notes.
 
-该入口由 `debug_assertions` 保护，不会进入 Release 行为；设置页只显示匿名的命中和渲染计数，不记录字符内容。
+## Special Thanks
 
-## 实现选型
+Con Pet would not be what it is without the open-source work and ideas shared by these projects:
 
-- [Tauri 2](https://github.com/tauri-apps/tauri)：跨平台窗口、托盘和打包。
-- [rdev](https://github.com/kunkunsh/rdev)：全局键盘事件；固定到 BongoCat 使用的提交版本。
-- [tauri-plugin-macos-permissions](https://github.com/ayangweb/tauri-plugin-macos-permissions)：macOS 输入监控权限检查与引导。
-- 透明小窗和监听方式参考了 [BongoCat](https://github.com/ayangweb/BongoCat) 与 [YAKC](https://github.com/iammodev/YAKC) 的成熟实践。
+- [BongoCat](https://github.com/ayangweb/BongoCat) — the primary architectural reference for a cross-platform Tauri desktop pet, background lifecycle, and macOS permission experience.
+- [YAKC](https://github.com/iammodev/YAKC) — a valuable reference for small transparent, always-on-top, click-through desktop overlays.
+- [beUI](https://github.com/starc007/ui-components) — the source and design inspiration for the Motion-based controls adapted in the settings window.
+- [keytap](https://github.com/jamiepine/keytap) — a focused, observe-only global keyboard listener that made the native input path smaller and more reliable.
+- [tauri-plugin-macos-permissions](https://github.com/ayangweb/tauri-plugin-macos-permissions) — the permission bridge used to provide a clear macOS Input Monitoring setup flow.
+- [Codex Pets](https://codex-pets.net/) and its community creators — for the Pet package format, animation-state conventions, and the ecosystem that made an offline gallery possible.
 
-详细第三方说明见 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)。
+Thank you to every maintainer and contributor behind these projects.
 
-## 验证
+## Verification and Packaging
 
-仓库 CI 在 macOS 和 Windows 上执行：前端单元测试、TypeScript/Vite 生产构建、Rust 单元测试。macOS 还需在有输入监控权限的真机上执行上述原生链路自测。
+CI runs the frontend tests, TypeScript/Vite production build, Rust formatting check, Clippy, and Rust tests on macOS and Windows. The macOS input listener and permission lifecycle still require manual verification on a physical Mac with Input Monitoring permission.
 
-手动运行 GitHub Actions 的 `Package installers` 工作流，可分别产出 macOS DMG 和 Windows NSIS 安装程序。
+After CI succeeds on `main`, the `Package installers` workflow builds a macOS Universal DMG and Windows x64 NSIS installer. Artifacts include the commit SHA and are retained for 30 days. The workflow can also be started manually.
 
 ## License
 
-代码使用 MIT License。内置或用户选择的 Codex Pet 图像仍归各自资源权利人所有。
+The source code is licensed under the MIT License. Bundled or user-selected Codex Pet artwork remains the property of its respective rights holders.

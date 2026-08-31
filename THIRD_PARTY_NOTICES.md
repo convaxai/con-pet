@@ -8,12 +8,11 @@ Con Pet uses or studies the following open-source projects. The project does not
 - License: Apache-2.0 OR MIT
 - Use: cross-platform desktop runtime, windows, tray, events, and packaging.
 
-## rdev fork
+## keytap
 
-- Source: https://github.com/kunkunsh/rdev
-- Revision: `cb9a29e19668a52e4e67d8a0ca6739c1807f8d3f`
-- License: MIT
-- Use: global keyboard event listener and the Debug-only native event self-test.
+- Source: https://github.com/jamiepine/keytap
+- License: MIT OR Apache-2.0
+- Use: observe-only global keyboard event listener on macOS and Windows.
 
 ## tauri-plugin-macos-permissions
 
@@ -25,7 +24,7 @@ Con Pet uses or studies the following open-source projects. The project does not
 
 - Source: https://github.com/ayangweb/BongoCat
 - License: MIT
-- Use: architectural reference for the Tauri + rdev + macOS permission-plugin combination.
+- Use: architectural reference for a cross-platform Tauri desktop pet, background lifecycle, and macOS permission experience.
 
 ## YAKC
 
