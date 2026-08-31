@@ -608,15 +608,15 @@ pub fn run() {
         ])
         .build(tauri::generate_context!())
         .expect("error while building Con Pet")
-        .run(|app, event| {
+        .run(|_app, _event| {
             #[cfg(target_os = "macos")]
             if let tauri::RunEvent::Reopen {
                 has_visible_windows,
                 ..
-            } = event
+            } = _event
             {
                 if !has_visible_windows {
-                    show_settings(app);
+                    show_settings(_app);
                 }
             }
         });
