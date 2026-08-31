@@ -19,6 +19,12 @@ Con Pet is an always-available desktop companion for Windows and macOS. When you
 - Keeps running in the system tray after the settings window closes and offers configurable launch at login.
 - Provides separate English and Simplified Chinese interfaces.
 
+## Roadmap / TODO
+
+- [ ] Add local-only typing activity statistics, such as aggregate keystroke counts and daily trends. Store counters only—never typed content, individual keys, or key sequences—and never upload the data.
+- [ ] Explore persistent Pet interaction and progression, such as petting, feeding, playing, mood, and companionship levels.
+- [ ] Add idle progression so a Pet can grow over time, gain experience, and unlock new states or animations while accompanying the user.
+
 ## Pet Package Format
 
 Con Pet is directly compatible with the standard Codex Pet package:
