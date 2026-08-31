@@ -96,7 +96,9 @@ Con Pet 的实现离不开以下开源项目分享的代码、经验与设计思
 
 仓库 CI 在 macOS 和 Windows 上执行前端单元测试、TypeScript/Vite 生产构建、Rust 格式检查、Clippy 和 Rust 单元测试。macOS 的输入监听与授权生命周期仍需在具有输入监控权限的真机上手动验证。
 
-`main` 分支 CI 通过后，`Package installers` 工作流会生成 macOS Universal DMG 和 Windows x64 NSIS 安装程序，产物名称包含提交 SHA 并保留 30 天。该工作流也可以手动运行。
+`main` 分支 CI 通过后，`Package installers` 工作流会生成 [macOS Universal DMG](https://github.com/convaxai/con-pet/releases/latest/download/Con-Pet-macOS-universal.dmg) 和 [Windows x64 NSIS 安装程序](https://github.com/convaxai/con-pet/releases/latest/download/Con-Pet-Windows-x64.exe)，并替换唯一一个滚动更新的 [Latest Nightly Release](https://github.com/convaxai/con-pet/releases/latest) 及其 [SHA-256 校验文件](https://github.com/convaxai/con-pet/releases/latest/download/SHA256SUMS.txt)。按提交区分的 Actions 调试产物仍保留 30 天，但不会再创建一批资源同名的历史 Release。
+
+未配置 Apple 凭据时，macOS 任务会继续使用 ad-hoc 签名。要让更新前后的输入监控授权保持稳定，需要同时配置六个仓库 Secret：`APPLE_CERTIFICATE`、`APPLE_CERTIFICATE_PASSWORD`、`APPLE_ID`、`APPLE_PASSWORD`、`APPLE_TEAM_ID` 和 `KEYCHAIN_PASSWORD`，从而完成 Developer ID 签名与公证。只配置其中一部分时工作流会直接失败，避免发布身份不明确的安装包。
 
 ## License
 

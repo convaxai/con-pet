@@ -96,7 +96,9 @@ Thank you to every maintainer and contributor behind these projects.
 
 CI runs the frontend tests, TypeScript/Vite production build, Rust formatting check, Clippy, and Rust tests on macOS and Windows. The macOS input listener and permission lifecycle still require manual verification on a physical Mac with Input Monitoring permission.
 
-After CI succeeds on `main`, the `Package installers` workflow builds a [macOS Universal DMG](https://github.com/convaxai/con-pet/releases/download/nightly/Con-Pet-macOS-universal.dmg) and [Windows x64 NSIS installer](https://github.com/convaxai/con-pet/releases/download/nightly/Con-Pet-Windows-x64.exe), then updates the rolling [Nightly Release](https://github.com/convaxai/con-pet/releases/tag/nightly) and its [SHA-256 checksums](https://github.com/convaxai/con-pet/releases/download/nightly/SHA256SUMS.txt). These stable download links do not expire automatically. Commit-specific Actions artifacts are also retained for 30 days for debugging, and the workflow can be started manually without publishing a release.
+After CI succeeds on `main`, the `Package installers` workflow builds a [macOS Universal DMG](https://github.com/convaxai/con-pet/releases/latest/download/Con-Pet-macOS-universal.dmg) and [Windows x64 NSIS installer](https://github.com/convaxai/con-pet/releases/latest/download/Con-Pet-Windows-x64.exe), then replaces the assets in the single rolling [Latest Nightly Release](https://github.com/convaxai/con-pet/releases/latest) and publishes [SHA-256 checksums](https://github.com/convaxai/con-pet/releases/latest/download/SHA256SUMS.txt). Commit-specific Actions artifacts are retained for 30 days for debugging; no additional same-named historical Releases are created.
+
+The macOS job uses ad-hoc signing when no Apple credentials are configured. To produce an update-stable Developer ID signed and notarized build, add all six repository secrets together: `APPLE_CERTIFICATE`, `APPLE_CERTIFICATE_PASSWORD`, `APPLE_ID`, `APPLE_PASSWORD`, `APPLE_TEAM_ID`, and `KEYCHAIN_PASSWORD`. Partial signing configuration intentionally fails the build instead of silently publishing an ambiguous package.
 
 ## License
 
