@@ -70,7 +70,7 @@ const payloadCache = new Map<string, Promise<PetPayload>>();
 const PAYLOAD_CACHE_LIMIT = 12;
 
 function petCacheKey(pet: LocalPet): string {
-  return pet.manifestPath ?? "builtin:mj";
+  return pet.manifestPath ?? "builtin:spiderman4";
 }
 
 async function checkPermission(platform: string): Promise<boolean> {
@@ -128,24 +128,22 @@ async function discoverPets(locale: Locale, selectedPath: string | null): Promis
   const pets: LocalPet[] = [
     {
       manifestPath: null,
-      id: "mj",
-      displayName: translate(locale, "builtinMj"),
-      description: "Michael Jackson",
+      id: "spiderman4-sticker",
+      displayName: translate(locale, "spiderManPetName"),
+      description: translate(locale, "spiderManPetDescription"),
     },
-    ...choices.map((choice) => {
+    ...choices.filter((choice) => choice.id !== "spiderman4-sticker").map((choice) => {
       if (choice.id === "pathlight") {
         return { ...choice, displayName: translate(locale, "builtinPathlight") };
       }
-      return choice.id === "spiderman4-sticker"
-        ? {
-            ...choice,
-            displayName: translate(locale, "spiderManPetName"),
-            description: translate(locale, "spiderManPetDescription"),
-          }
-        : { ...choice };
+      return { ...choice };
     }),
   ];
-  if (selectedPath && !pets.some((pet) => pet.manifestPath === selectedPath)) {
+  if (
+    selectedPath &&
+    selectedPath !== "builtin:spiderman4" &&
+    !pets.some((pet) => pet.manifestPath === selectedPath)
+  ) {
     pets.push({
       manifestPath: selectedPath,
       id: "custom",

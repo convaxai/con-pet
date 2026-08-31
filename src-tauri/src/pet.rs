@@ -9,8 +9,6 @@ use std::{
 };
 use tauri::{AppHandle, Manager};
 
-const DEFAULT_MANIFEST: &str = include_str!("../resources/pets/mj/pet.json");
-const DEFAULT_SPRITESHEET: &[u8] = include_bytes!("../resources/pets/mj/spritesheet.webp");
 const PATHLIGHT_SELECTION: &str = "builtin:pathlight";
 const PATHLIGHT_MANIFEST: &str = include_str!("../resources/pets/pathlight/pet.json");
 const PATHLIGHT_SPRITESHEET: &[u8] = include_bytes!("../resources/pets/pathlight/spritesheet.webp");
@@ -18,13 +16,7 @@ const SPIDER_MAN_SELECTION: &str = "builtin:spiderman4";
 const SPIDER_MAN_MANIFEST: &str = include_str!("../resources/pets/spiderman4/pet.json");
 const SPIDER_MAN_SPRITESHEET: &[u8] =
     include_bytes!("../resources/pets/spiderman4/spritesheet.png");
-const HIDDEN_PET_IDS: [&str; 5] = [
-    "mj",
-    "pathlight",
-    "spiderman4-sticker",
-    "webby",
-    "maozedong",
-];
+const HIDDEN_PET_IDS: [&str; 4] = ["pathlight", "spiderman4-sticker", "webby", "maozedong"];
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -65,8 +57,7 @@ pub struct PetThumbnail {
 }
 
 pub fn builtin_payload() -> Result<PetPayload, String> {
-    let manifest = parse_manifest(DEFAULT_MANIFEST)?;
-    payload(manifest, DEFAULT_SPRITESHEET, "image/webp")
+    spider_man_payload()
 }
 
 fn pathlight_payload() -> Result<PetPayload, String> {
@@ -126,8 +117,8 @@ pub fn selected_thumbnail(selection: Option<&str>) -> Result<PetThumbnail, Strin
             (manifest, image)
         }
         None => (
-            parse_manifest(DEFAULT_MANIFEST)?,
-            DEFAULT_SPRITESHEET.to_vec(),
+            parse_manifest(SPIDER_MAN_MANIFEST)?,
+            SPIDER_MAN_SPRITESHEET.to_vec(),
         ),
     };
     let image_data_url = representative_frame_data_url(&image)?;
@@ -364,9 +355,9 @@ mod tests {
     use std::collections::HashSet;
 
     #[test]
-    fn bundled_default_pet_is_mj() {
+    fn bundled_default_pet_is_spider_man() {
         let pet = builtin_payload().unwrap();
-        assert_eq!(pet.manifest.id, "mj");
+        assert_eq!(pet.manifest.id, "spiderman4-sticker");
         assert_eq!(pet.frame_width * pet.columns, 1536);
         assert_eq!(pet.frame_height * pet.rows, 2288);
         assert!(!pet.spritesheet_data_url.is_empty());
