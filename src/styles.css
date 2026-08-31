@@ -389,21 +389,7 @@ button { cursor: pointer; }
   inset: 0;
   opacity: 0;
 }
-#web-line {
-  position: absolute;
-  z-index: 1;
-  top: 0;
-  width: 2px;
-  height: 0;
-  border-radius: 999px;
-  background: linear-gradient(90deg, rgba(123, 129, 139, .85), #fff 50%, rgba(123, 129, 139, .85));
-  box-shadow: 0 0 2px rgba(255, 255, 255, .6);
-  opacity: 0;
-  transform: translateX(-50%);
-  transform-origin: 50% 0;
-  will-change: height, opacity;
-}
-#motion { position: absolute; transform-origin: 50% 0; will-change: transform; }
+#motion { position: absolute; transform-origin: 50% 0; will-change: transform, clip-path; }
 #sprite {
   position: absolute;
   inset: 0 auto auto 0;

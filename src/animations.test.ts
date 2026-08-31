@@ -5,7 +5,6 @@ import {
   randomTriggerAnimation,
   spiderManTriggerAnimations,
   standardTriggerAnimations,
-  webLineLength,
 } from "./animations";
 
 describe("Spider-Man web swing", () => {
@@ -33,16 +32,16 @@ describe("Spider-Man web swing", () => {
 });
 
 describe("Spider-Man extended effects", () => {
-  it("reuses full-body waving poses for the upside-down entrance", () => {
+  it("uses complete official-effect frames for the upside-down entrance", () => {
     const upsideDown = animations["spider-upside-down"].frames;
     const heart = animations["spider-heart"].frames;
     const crying = animations["spider-crying"].frames;
 
-    expect(upsideDown).toHaveLength(52);
+    expect(upsideDown).toHaveLength(47);
     expect(heart).toHaveLength(44);
     expect(crying).toHaveLength(40);
     expect(new Set(upsideDown.map((frame) => frame.row * 8 + frame.column))).toEqual(
-      new Set(Array.from({ length: 18 }, (_, index) => index + 2)),
+      new Set(Array.from({ length: 13 }, (_, index) => index + 20)),
     );
     expect(new Set(heart.map((frame) => frame.row * 8 + frame.column))).toEqual(
       new Set(Array.from({ length: 22 }, (_, index) => index + 41)),
@@ -58,7 +57,7 @@ describe("Spider-Man extended effects", () => {
         (total, frame) => total + frame.duration,
         0,
       ),
-    ).toBe(5_590);
+    ).toBe(5_740);
     expect(
       animations["spider-heart"].frames.reduce((total, frame) => total + frame.duration, 0),
     ).toBe(4_840);
@@ -67,24 +66,22 @@ describe("Spider-Man extended effects", () => {
     ).toBe(4_800);
   });
 
-  it("drops an inverted Spider-Man from above and retracts him", () => {
+  it("reveals and retracts the intact web-and-hero frame from the screen top", () => {
     const frames = animations["spider-upside-down"].frames;
     expect(frames[0]).toMatchObject({
-      column: 2,
-      row: 0,
-      offsetY: -360,
-      rotation: 180,
-      webAnchorY: 32,
+      column: 4,
+      row: 2,
+      reveal: 0,
     });
-    expect(Math.max(...frames.map((frame) => frame.offsetY ?? 0))).toBeGreaterThanOrEqual(135);
+    expect(Math.max(...frames.map((frame) => frame.reveal ?? 0))).toBe(1);
     expect(frames[frames.length - 1]).toMatchObject({
-      offsetY: -360,
-      rotation: 180,
-      webAnchorY: 32,
+      reveal: 0,
     });
-    expect(frames.every((frame) => frame.webAnchorY === 32)).toBe(true);
-    expect(webLineLength(frames[0], 1.6)).toBe(0);
-    expect(Math.max(...frames.map((frame) => webLineLength(frame, 1.6)))).toBeGreaterThan(180);
+    expect(new Set(frames.map((frame) => frame.row * 8 + frame.column))).toEqual(
+      new Set(Array.from({ length: 13 }, (_, index) => index + 20)),
+    );
+    expect(frames.every((frame) => frame.rotation === undefined)).toBe(true);
+    expect(frames.every((frame) => frame.offsetY === undefined)).toBe(true);
   });
 });
 
