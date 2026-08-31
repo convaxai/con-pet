@@ -85,7 +85,7 @@ jobs:
           compression-level: 0
 
   publish-nightly:
-    name: Publish nightly release
+    name: Publish nightly releases
     needs: package
     if: >-
       github.event_name == 'workflow_run' &&
@@ -118,7 +118,7 @@ jobs:
           cd release
           sha256sum Con-Pet-macOS-universal.dmg Con-Pet-Windows-x64.exe > SHA256SUMS.txt
 
-      - name: Publish rolling nightly release
+      - name: Publish archived and rolling nightly releases
         shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
@@ -126,8 +126,32 @@ jobs:
         run: |
           set -euo pipefail
 
+          short_sha="${TARGET_SHA:0:12}"
+          history_tag="nightly-${short_sha}"
           release_tag=nightly
-          release_notes="Automated unsigned development build from main commit ${TARGET_SHA}. macOS may require Open Anyway; Windows may show a SmartScreen warning."
+          printf -v release_notes 'Automated unsigned development build from `main`.\n\n- Commit: [`%s`](https://github.com/%s/commit/%s)\n- Package run: [#%s](https://github.com/%s/actions/runs/%s)\n\nmacOS may require Open Anyway; Windows may show a SmartScreen warning.' \
+            "$short_sha" "$GITHUB_REPOSITORY" "$TARGET_SHA" \
+            "$GITHUB_RUN_NUMBER" "$GITHUB_REPOSITORY" "$GITHUB_RUN_ID"
+
+          if gh release view "$history_tag" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            gh release edit "$history_tag" --repo "$GITHUB_REPOSITORY" \
+              --title "Con Pet Nightly ${short_sha}" \
+              --notes "$release_notes" \
+              --prerelease \
+              --latest=false
+          else
+            gh release create "$history_tag" --repo "$GITHUB_REPOSITORY" \
+              --target "$TARGET_SHA" \
+              --title "Con Pet Nightly ${short_sha}" \
+              --notes "$release_notes" \
+              --prerelease \
+              --latest=false
+          fi
+
+          gh release upload "$history_tag" release/* --clobber --repo "$GITHUB_REPOSITORY"
+
+          printf -v rolling_notes '%s\n\nArchived build: [`%s`](https://github.com/%s/releases/tag/%s)' \
+            "$release_notes" "$history_tag" "$GITHUB_REPOSITORY" "$history_tag"
 
           if gh api "repos/${GITHUB_REPOSITORY}/git/ref/tags/${release_tag}" >/dev/null 2>&1; then
             gh api --method PATCH "repos/${GITHUB_REPOSITORY}/git/refs/tags/${release_tag}" \
@@ -139,15 +163,15 @@ jobs:
 
           if gh release view "$release_tag" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
             gh release edit "$release_tag" --repo "$GITHUB_REPOSITORY" \
-              --title "Con Pet Nightly" \
-              --notes "$release_notes" \
+              --title "Con Pet Nightly (${short_sha})" \
+              --notes "$rolling_notes" \
               --prerelease \
               --latest=false
           else
             gh release create "$release_tag" --repo "$GITHUB_REPOSITORY" \
               --verify-tag \
-              --title "Con Pet Nightly" \
-              --notes "$release_notes" \
+              --title "Con Pet Nightly (${short_sha})" \
+              --notes "$rolling_notes" \
               --prerelease \
               --latest=false
           fi
