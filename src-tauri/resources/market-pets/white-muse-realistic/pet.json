@@ -1,0 +1,7 @@
+{
+  "id": "white-muse-realistic",
+  "displayName": "White Muse",
+  "description": "A photorealistic miniature desktop companion in an oversized white button-up shirt, inspired by the provided reference.",
+  "spritesheetPath": "spritesheet.webp",
+  "kind": "person"
+}

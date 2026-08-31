@@ -1,0 +1,7 @@
+{
+  "id": "buba",
+  "displayName": "Buba",
+  "description": "A cute teal pixel-art companion inspired by the provided Buba reference.",
+  "spritesheetPath": "spritesheet.webp",
+  "kind": "creature"
+}

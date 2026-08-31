@@ -1,0 +1,7 @@
+{
+  "id": "pingu",
+  "displayName": "Pingu",
+  "description": "A small claymation penguin pet inspired by the children's cartoon Pingu, with black rounded body, white belly, red beak, and orange feet.",
+  "spritesheetPath": "spritesheet.webp",
+  "kind": "animal"
+}

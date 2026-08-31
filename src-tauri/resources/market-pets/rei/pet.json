@@ -1,0 +1,7 @@
+{
+  "id": "rei",
+  "displayName": "Rei",
+  "description": "A quiet blue-haired Codex digital pet inspired by Rei Ayanami from Evangelion.",
+  "spritesheetPath": "spritesheet.webp",
+  "kind": "person"
+}

@@ -1,0 +1,7 @@
+{
+  "id": "ikunchick",
+  "displayName": "ikunchick",
+  "description": "A tiny basketball chick digital pet based closely on the provided IKun chick reference.",
+  "spritesheetPath": "spritesheet.webp",
+  "kind": "animal"
+}

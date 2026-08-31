@@ -1,0 +1,6 @@
+{
+  "id": "clippy",
+  "displayName": "Clippy",
+  "description": "A tiny Codex-style Clippy paperclip mascot with expressive eyes and helpful workspace energy.",
+  "spritesheetPath": "spritesheet.webp"
+}

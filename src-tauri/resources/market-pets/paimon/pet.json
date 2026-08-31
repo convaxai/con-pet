@@ -1,0 +1,7 @@
+{
+  "id": "paimon",
+  "displayName": "Paimon",
+  "description": "A tiny floating guide with Teyvat-inspired fantasy charm, always ready to cheer on your coding adventure.",
+  "spritesheetPath": "spritesheet.webp",
+  "kind": "object"
+}

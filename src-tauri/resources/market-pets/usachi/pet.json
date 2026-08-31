@@ -1,0 +1,7 @@
+{
+  "id": "usachi",
+  "displayName": "乌萨奇",
+  "description": "一只可爱、活泼、会发出奇怪叫声的兔子。",
+  "spritesheetPath": "spritesheet.webp",
+  "kind": "animal"
+}

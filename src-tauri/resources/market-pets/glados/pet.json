@@ -1,0 +1,7 @@
+{
+  "id": "glados",
+  "displayName": "GLaDOS",
+  "description": "A tiny suspended GLaDOS companion with a sharp eye for your workspace.",
+  "spritesheetPath": "spritesheet.webp",
+  "kind": "object"
+}

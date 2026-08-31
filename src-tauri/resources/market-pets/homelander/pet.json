@@ -1,0 +1,7 @@
+{
+  "id": "homelander",
+  "displayName": "Homelander",
+  "description": "A tiny cartoon patriotic caped superhero pet with blond hair, blue suit, red gloves, cape, inner-toed flying poses, and laser-eye flair.",
+  "spritesheetPath": "spritesheet.webp",
+  "kind": "person"
+}

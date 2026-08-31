@@ -1,0 +1,7 @@
+{
+  "id": "tabbit",
+  "displayName": "哆啦a梦",
+  "description": "A cheerful blue-and-white cat-like robot pet inspired by the reference image.",
+  "spritesheetPath": "spritesheet.webp",
+  "kind": "creature"
+}

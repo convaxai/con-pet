@@ -1,0 +1,7 @@
+{
+  "id": "clawd-laptop",
+  "displayName": "Clawd Laptop",
+  "description": "Original Claude Desktop Clawd laptop typing animation.",
+  "spritesheetPath": "spritesheet.webp",
+  "kind": "object"
+}

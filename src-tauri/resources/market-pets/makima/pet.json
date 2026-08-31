@@ -1,0 +1,7 @@
+{
+  "id": "makima",
+  "displayName": "Makima",
+  "description": "A tiny Codex digital pet inspired by Makima: calm, unnervingly composed, red-haired, golden ring-eyed, in a simplified black-and-white suit.",
+  "spritesheetPath": "spritesheet.webp",
+  "kind": "person"
+}

@@ -1,0 +1,19 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "default",
+  "description": "Capabilities for the settings and click-through animation windows",
+  "windows": ["main", "overlay"],
+  "permissions": [
+    "core:default",
+    "core:event:default",
+    "core:window:default",
+    "core:window:allow-hide",
+    "core:window:allow-set-position",
+    "core:window:allow-set-size",
+    "core:window:allow-set-background-color",
+    "core:window:allow-show",
+    "core:webview:allow-set-webview-background-color",
+    "dialog:default",
+    "macos-permissions:default"
+  ]
+}

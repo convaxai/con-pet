@@ -1,0 +1,7 @@
+{
+  "id": "tiny-crt",
+  "displayName": "Tiny CRT",
+  "description": "A tiny beige retro CRT terminal monitor with a green phosphor face for Codex, with no arms or legs.",
+  "spritesheetPath": "spritesheet.webp",
+  "kind": "object"
+}

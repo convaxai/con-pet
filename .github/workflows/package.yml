@@ -1,0 +1,43 @@
+name: Package installers
+
+on:
+  workflow_dispatch:
+
+jobs:
+  package:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: macos-14
+            bundle: dmg
+            artifact: pc-pet-macos
+            path: src-tauri/target/release/bundle/dmg/*.dmg
+          - os: windows-latest
+            bundle: nsis
+            artifact: pc-pet-windows
+            path: src-tauri/target/release/bundle/nsis/*.exe
+    runs-on: ${{ matrix.os }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm tauri build --bundles ${{ matrix.bundle }}
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.artifact }}
+          path: ${{ matrix.path }}
+          if-no-files-found: error

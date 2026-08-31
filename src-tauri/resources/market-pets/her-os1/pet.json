@@ -1,0 +1,7 @@
+{
+  "id": "her-os1",
+  "displayName": "Her OS 1",
+  "description": "Minimalist AI from the movie Her.",
+  "spritesheetPath": "spritesheet.webp",
+  "kind": "object"
+}

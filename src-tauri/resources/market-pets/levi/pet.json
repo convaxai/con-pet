@@ -1,0 +1,7 @@
+{
+  "id": "levi",
+  "displayName": "Levi",
+  "description": "A tiny airborne sword fighter who jumps, spins, and swings twin blades.",
+  "spritesheetPath": "spritesheet.webp",
+  "kind": "person"
+}

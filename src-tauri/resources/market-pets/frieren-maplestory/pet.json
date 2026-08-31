@@ -1,0 +1,7 @@
+{
+  "id": "frieren-maplestory",
+  "displayName": "Frieren-maplestory",
+  "description": "A MapleStory-style Frieren pet with sleepy elf-mage expressions, blue magic casting, and a dramatic twin-tail-gripping crying animation.",
+  "spritesheetPath": "spritesheet.webp",
+  "kind": "person"
+}

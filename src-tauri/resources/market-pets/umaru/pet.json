@@ -1,0 +1,7 @@
+{
+  "id": "umaru",
+  "displayName": "Umaru",
+  "description": "A tiny Codex digital pet inspired by 小埋 in a hamster-hoodie chibi mascot form.",
+  "spritesheetPath": "spritesheet.webp",
+  "kind": "creature"
+}

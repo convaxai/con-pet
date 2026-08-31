@@ -1,0 +1,6 @@
+{
+  "id": "clippy-ms",
+  "displayName": "Clippy",
+  "description": "A compact pixel-style pet inspired by Microsoft's Clippy paperclip assistant.",
+  "spritesheetPath": "spritesheet.webp"
+}

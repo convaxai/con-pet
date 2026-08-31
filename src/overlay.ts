@@ -1,0 +1,180 @@
+import { invoke } from "@tauri-apps/api/core";
+import { listen } from "@tauri-apps/api/event";
+import { LogicalSize, PhysicalPosition } from "@tauri-apps/api/dpi";
+import { getCurrentWebview } from "@tauri-apps/api/webview";
+import {
+  availableMonitors,
+  cursorPosition,
+  getCurrentWindow,
+  primaryMonitor,
+  type Monitor,
+} from "@tauri-apps/api/window";
+import { animations } from "./animations";
+import type { SpriteFrame } from "./animations";
+import { computePosition } from "./positioning";
+import type { AppConfig, PetPayload } from "./types";
+
+const sleep = (milliseconds: number) =>
+  new Promise<void>((resolve) => window.setTimeout(resolve, milliseconds));
+
+const decodedSpritesheets = new Map<string, Promise<void>>();
+
+export async function renderOverlay(): Promise<void> {
+  document.body.className = "overlay-body";
+  document.body.innerHTML = '<div id="motion" aria-hidden="true"><div id="sprite"></div></div>';
+  const motion = document.querySelector<HTMLDivElement>("#motion");
+  const sprite = document.querySelector<HTMLDivElement>("#sprite");
+  if (!motion || !sprite) return;
+
+  const overlay = getCurrentWindow();
+  // CSS transparency is required on every platform. These native calls also
+  // clear the host window on macOS and the WebView surface on Windows.
+  await overlay.setBackgroundColor([0, 0, 0, 0]);
+  await getCurrentWebview().setBackgroundColor([0, 0, 0, 0]).catch(() => undefined);
+
+  let generation = 0;
+  await listen("keyword-triggered", async () => {
+    const currentGeneration = ++generation;
+    try {
+      const [config, pet] = await Promise.all([
+        invoke<AppConfig>("get_config"),
+        invoke<PetPayload>("get_pet"),
+      ]);
+      if (!config.enabled) return;
+      await preloadSpritesheet(pet.spritesheetDataUrl);
+      if (generation !== currentGeneration) return;
+      await placeOverlay(config, pet);
+      configureSprite(motion, sprite, config, pet);
+      applyFrame(motion, sprite, pet, animations[config.animation].frames[0]);
+      await getCurrentWindow().show();
+      await invoke("report_overlay_rendered");
+      await play(motion, sprite, config, pet, currentGeneration, () => generation);
+      if (generation === currentGeneration) await getCurrentWindow().hide();
+    } catch (error) {
+      console.error("Con Pet overlay failed", error);
+      await getCurrentWindow().hide();
+    }
+  });
+  await invoke("report_overlay_ready");
+  await overlay.hide();
+}
+
+function configureSprite(
+  motion: HTMLDivElement,
+  sprite: HTMLDivElement,
+  config: AppConfig,
+  pet: PetPayload,
+): void {
+  const padding = motionPadding(config);
+  motion.style.left = `${padding.x / 2}px`;
+  motion.style.top = "0";
+  motion.style.width = `${pet.frameWidth * config.scale}px`;
+  motion.style.height = `${pet.frameHeight * config.scale}px`;
+  motion.style.transform = "none";
+  sprite.style.width = `${pet.frameWidth}px`;
+  sprite.style.height = `${pet.frameHeight}px`;
+  sprite.style.backgroundImage = `url("${pet.spritesheetDataUrl}")`;
+  sprite.style.backgroundSize = `${pet.frameWidth * pet.columns}px ${pet.frameHeight * pet.rows}px`;
+  sprite.style.transform = `scale(${config.scale})`;
+}
+
+function preloadSpritesheet(source: string): Promise<void> {
+  const cached = decodedSpritesheets.get(source);
+  if (cached) return cached;
+
+  const loading = new Promise<void>((resolve, reject) => {
+    const image = new Image();
+    image.decoding = "sync";
+    image.onload = () => {
+      image.decode().then(() => resolve(), reject);
+    };
+    image.onerror = () => reject(new Error("序列帧图集加载失败"));
+    image.src = source;
+  });
+  decodedSpritesheets.set(source, loading);
+  loading.catch(() => decodedSpritesheets.delete(source));
+  return loading;
+}
+
+function applyFrame(
+  motion: HTMLDivElement,
+  sprite: HTMLDivElement,
+  pet: PetPayload,
+  frame: SpriteFrame,
+): void {
+  sprite.style.backgroundPosition = `${-frame.column * pet.frameWidth}px ${-frame.row * pet.frameHeight}px`;
+  motion.style.transform = `translate(${frame.offsetX ?? 0}px, ${frame.offsetY ?? 0}px) rotate(${frame.rotation ?? 0}deg)`;
+}
+
+async function play(
+  motion: HTMLDivElement,
+  sprite: HTMLDivElement,
+  config: AppConfig,
+  pet: PetPayload,
+  generation: number,
+  currentGeneration: () => number,
+): Promise<void> {
+  const animation = animations[config.animation];
+  for (let loop = 0; loop < config.loops; loop += 1) {
+    for (const frame of animation.frames) {
+      if (generation !== currentGeneration()) return;
+      applyFrame(motion, sprite, pet, frame);
+      await sleep(frame.duration);
+    }
+  }
+}
+
+async function placeOverlay(config: AppConfig, pet: PetPayload): Promise<void> {
+  const monitors = await availableMonitors();
+  if (monitors.length === 0) return;
+  const monitor = await chooseMonitor(config, monitors);
+  const scaleFactor = monitor.scaleFactor;
+  const baseWidth = pet.frameWidth;
+  const padding = motionPadding(config);
+  const overlayWidth = baseWidth * config.scale + padding.x;
+  const overlayHeight = pet.frameHeight * config.scale + padding.y;
+  const spriteWidth = overlayWidth * scaleFactor;
+  const spriteHeight = overlayHeight * scaleFactor;
+  const position = computePosition({
+    workArea: {
+      x: monitor.workArea.position.x,
+      y: monitor.workArea.position.y,
+      width: monitor.workArea.size.width,
+      height: monitor.workArea.size.height,
+    },
+    spriteWidth,
+    spriteHeight,
+    margin: config.position.margin * scaleFactor,
+    mode: config.position.mode,
+    fixedX: config.position.fixedX * scaleFactor,
+    fixedY: config.position.fixedY * scaleFactor,
+  });
+  const overlay = getCurrentWindow();
+  await overlay.setSize(new LogicalSize(overlayWidth, overlayHeight));
+  await overlay.setPosition(new PhysicalPosition(position.x, position.y));
+}
+
+function motionPadding(config: AppConfig): { x: number; y: number } {
+  return config.animation === "web-swing" ? { x: 180, y: 52 } : { x: 0, y: 0 };
+}
+
+async function chooseMonitor(config: AppConfig, monitors: Monitor[]): Promise<Monitor> {
+  if (config.position.monitor === "random") {
+    return monitors[Math.floor(Math.random() * monitors.length)];
+  }
+  if (config.position.monitor === "primary") {
+    return (await primaryMonitor()) ?? monitors[0];
+  }
+  const cursor = await cursorPosition();
+  return (
+    monitors.find((monitor) => {
+      const { position, size } = monitor;
+      return (
+        cursor.x >= position.x &&
+        cursor.x < position.x + size.width &&
+        cursor.y >= position.y &&
+        cursor.y < position.y + size.height
+      );
+    }) ?? monitors[0]
+  );
+}

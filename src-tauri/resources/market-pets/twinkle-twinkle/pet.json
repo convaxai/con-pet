@@ -1,0 +1,7 @@
+{
+  "id": "twinkle-twinkle",
+  "displayName": "Dashun's Twinkle Twinkle",
+  "description": "A tiny star-hooded yellow plush companion with a pink freckled face, striped socks, and warm shining energy.",
+  "spritesheetPath": "spritesheet.webp",
+  "kind": "creature"
+}

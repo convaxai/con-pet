@@ -1,0 +1,7 @@
+{
+  "id": "scarf-cat-asset",
+  "displayName": "Tuanzi",
+  "description": "A black hand-drawn cat with a blue scarf, reproduced from the user's nine-state asset sheet as a Codex desktop pet.",
+  "spritesheetPath": "spritesheet.webp",
+  "kind": "animal"
+}

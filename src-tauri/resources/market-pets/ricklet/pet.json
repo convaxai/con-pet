@@ -1,0 +1,6 @@
+{
+  "id": "ricklet",
+  "displayName": "Ricklet",
+  "description": "A tiny chaotic scientist companion inspired by Rick Sanchez.",
+  "spritesheetPath": "spritesheet.webp"
+}

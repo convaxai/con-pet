@@ -1,0 +1,7 @@
+{
+  "id": "jiyi",
+  "displayName": "Jiyi",
+  "description": "A tiny white Chiikawa-like round desktop companion with shy soft expressions.",
+  "spritesheetPath": "spritesheet.webp",
+  "kind": "creature"
+}

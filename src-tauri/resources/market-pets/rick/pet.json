@@ -1,0 +1,7 @@
+{
+  "id": "rick",
+  "displayName": "Rick",
+  "description": "A tiny spiky-haired lab-coat scientist companion simplified into a Codex digital pet.",
+  "spritesheetPath": "spritesheet.webp",
+  "kind": "object"
+}

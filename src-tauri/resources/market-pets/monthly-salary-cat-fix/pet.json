@@ -1,0 +1,8 @@
+{
+  "id": "monthly-salary-cat-fix",
+  "displayName": "月薪喵",
+  "description": "一只白棕色的小猫咪，整天围绕着办公生活打转。\n \n没有设计抬头和低头的动作，但可以实现完整的 360° 旋转视角，是不是很解压。\n \n大家在 Vibe 等待时，可以逗逗这只“小小月薪喵”。\n它会一直陪着大家，陪你上班、陪你等待，也陪你完成每一个任务。\n\n大家喜欢可以点心心支持一下，后续大家想要什么形象的pets也可以评论给作者，我会参考大家的意见。",
+  "spritesheetPath": "spritesheet.webp",
+  "spriteVersionNumber": 2,
+  "kind": "creature"
+}

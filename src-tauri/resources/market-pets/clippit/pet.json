@@ -1,0 +1,6 @@
+{
+  "id": "clippit",
+  "displayName": "Clippy",
+  "description": "A classic paperclip assistant rebuilt from Microsoft Agent animation frames. Make your own from complete assets at https://github.com/Dimava/codex-clippy.",
+  "spritesheetPath": "spritesheet.webp"
+}

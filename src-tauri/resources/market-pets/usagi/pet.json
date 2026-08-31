@@ -1,0 +1,7 @@
+{
+  "id": "usagi",
+  "displayName": "Usagi",
+  "description": "A round cream bunny Codex pet with long upright ears, blush cheeks, tiny paws, and a cute catlike mouth.",
+  "spritesheetPath": "spritesheet.webp",
+  "kind": "creature"
+}

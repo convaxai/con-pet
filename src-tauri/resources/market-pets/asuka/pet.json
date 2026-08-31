@@ -1,0 +1,7 @@
+{
+  "id": "asuka",
+  "displayName": "Asuka",
+  "description": "A fiery chibi mecha pilot digital pet inspired by Asuka from Evangelion.",
+  "spritesheetPath": "spritesheet.webp",
+  "kind": "person"
+}

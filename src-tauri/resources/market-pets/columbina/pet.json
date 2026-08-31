@@ -1,0 +1,7 @@
+{
+  "id": "columbina",
+  "displayName": "Columbina",
+  "description": "原神-哥伦比娅。有睁眼、闭眼和眼罩状态。https://github.com/iBobbyTS/mihoyoCodexPets",
+  "spritesheetPath": "spritesheet.webp",
+  "kind": "person"
+}

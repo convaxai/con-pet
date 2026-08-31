@@ -1,0 +1,7 @@
+{
+  "id": "pika",
+  "displayName": "Pika",
+  "description": "A tiny yellow electric mouse digital pet based on the uploaded Pika sprite.",
+  "spritesheetPath": "spritesheet.webp",
+  "kind": "creature"
+}

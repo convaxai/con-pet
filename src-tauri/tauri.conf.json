@@ -1,0 +1,71 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "Con Pet",
+  "version": "0.1.0",
+  "identifier": "com.smackgg.pcpet",
+  "build": {
+    "beforeDevCommand": "pnpm dev",
+    "devUrl": "http://localhost:1420",
+    "beforeBuildCommand": "pnpm build",
+    "frontendDist": "../dist"
+  },
+  "app": {
+    "withGlobalTauri": true,
+    "macOSPrivateApi": true,
+    "windows": [
+      {
+        "label": "main",
+        "title": "Con Pet",
+        "width": 760,
+        "height": 760,
+        "minWidth": 680,
+        "minHeight": 640,
+        "center": true
+      },
+      {
+        "label": "overlay",
+        "title": "Con Pet",
+        "width": 192,
+        "height": 208,
+        "visible": true,
+        "x": -10000,
+        "y": -10000,
+        "transparent": true,
+        "decorations": false,
+        "shadow": false,
+        "resizable": false,
+        "maximizable": false,
+        "minimizable": false,
+        "focus": false,
+        "focusable": false,
+        "alwaysOnTop": true,
+        "skipTaskbar": true,
+        "visibleOnAllWorkspaces": true
+      }
+    ],
+    "security": {
+      "csp": null
+    }
+  },
+  "bundle": {
+    "active": true,
+    "targets": "all",
+    "resources": {
+      "resources/market-pets/": "market-pets/",
+      "resources/market-catalog.json": "market-catalog.json"
+    },
+    "category": "Utility",
+    "shortDescription": "A configurable desktop pet for Windows and macOS.",
+    "longDescription": "Play a pet animation when a configured keyboard keyword is typed.",
+    "macOS": {
+      "minimumSystemVersion": "10.15"
+    },
+    "icon": [
+      "icons/32x32.png",
+      "icons/128x128.png",
+      "icons/128x128@2x.png",
+      "icons/icon.icns",
+      "icons/icon.ico"
+    ]
+  }
+}
