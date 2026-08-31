@@ -137,14 +137,14 @@ jobs:
               -f ref="refs/tags/${release_tag}" -f sha="${TARGET_SHA}" >/dev/null
           fi
 
-          if gh release view "$release_tag" >/dev/null 2>&1; then
-            gh release edit "$release_tag" \
+          if gh release view "$release_tag" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            gh release edit "$release_tag" --repo "$GITHUB_REPOSITORY" \
               --title "Con Pet Nightly" \
               --notes "$release_notes" \
               --prerelease \
               --latest=false
           else
-            gh release create "$release_tag" \
+            gh release create "$release_tag" --repo "$GITHUB_REPOSITORY" \
               --verify-tag \
               --title "Con Pet Nightly" \
               --notes "$release_notes" \
@@ -152,4 +152,4 @@ jobs:
               --latest=false
           fi
 
-          gh release upload "$release_tag" release/* --clobber
+          gh release upload "$release_tag" release/* --clobber --repo "$GITHUB_REPOSITORY"
