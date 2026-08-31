@@ -15,7 +15,6 @@ import {
 import { createRoot } from "react-dom/client";
 import {
   checkInputMonitoringPermission,
-  requestInputMonitoringPermission,
 } from "tauri-plugin-macos-permissions-api";
 import { animations, galleryPreviewAnimation } from "./animations";
 import {
@@ -311,11 +310,15 @@ function SettingsApp() {
   };
 
   const handlePermission = async () => {
-    await requestInputMonitoringPermission();
-    notify(tx("permissionOpened"));
-    window.setTimeout(() => {
-      void checkPermission("macos").then(setInputPermissionGranted);
-    }, 600);
+    try {
+      await invoke<boolean>("request_input_monitoring_access");
+      notify(tx("permissionRequested"));
+      window.setTimeout(() => {
+        void checkPermission("macos").then(setInputPermissionGranted);
+      }, 600);
+    } catch (error) {
+      notify(String(error), "error");
+    }
   };
 
   const applyPet = async (pet: LocalPet, selectedNotice = true): Promise<AppConfig> => {

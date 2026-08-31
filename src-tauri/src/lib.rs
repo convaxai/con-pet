@@ -20,6 +20,12 @@ use tauri::{
 };
 use tauri_plugin_autostart::ManagerExt;
 
+#[cfg(target_os = "macos")]
+#[link(name = "IOKit", kind = "framework")]
+unsafe extern "C" {
+    fn IOHIDRequestAccess(request_type: u32) -> bool;
+}
+
 #[derive(Clone)]
 struct AppState {
     config: Arc<RwLock<AppConfig>>,
@@ -189,6 +195,19 @@ fn get_runtime_status(state: State<'_, AppState>) -> RuntimeStatus {
         overlay_render_count: state.overlay_render_count.load(Ordering::Relaxed),
         overlay_ready: state.overlay_ready.load(Ordering::Relaxed),
     }
+}
+
+#[tauri::command]
+fn request_input_monitoring_access() -> bool {
+    #[cfg(target_os = "macos")]
+    unsafe {
+        // kIOHIDRequestTypeListenEvent. Unlike IOHIDCheckAccess, this registers
+        // the current app with TCC and presents the system authorization flow.
+        IOHIDRequestAccess(1)
+    }
+
+    #[cfg(not(target_os = "macos"))]
+    true
 }
 
 #[tauri::command]
@@ -598,6 +617,7 @@ pub fn run() {
             get_autostart_enabled,
             set_autostart_enabled,
             get_runtime_status,
+            request_input_monitoring_access,
             test_trigger,
             report_overlay_rendered,
             report_overlay_ready,
