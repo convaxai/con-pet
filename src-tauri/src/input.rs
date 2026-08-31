@@ -34,34 +34,53 @@ pub fn start(app: AppHandle, state: AppState) {
     thread::Builder::new()
         .name("pc-pet-global-input".into())
         .spawn(move || {
-            let tap = match Tap::new() {
-                Ok(tap) => tap,
-                Err(error) => {
-                    state.listener_running.store(false, Ordering::Relaxed);
-                    let message = format!("全局键盘监听启动失败：{error}");
-                    if let Ok(mut slot) = state.listener_error.write() {
-                        *slot = Some(message.clone());
+            loop {
+                let tap = match Tap::new() {
+                    Ok(tap) => tap,
+                    Err(error) => {
+                        update_listener_state(
+                            &app,
+                            &state,
+                            false,
+                            Some(format!("全局键盘监听启动失败：{error}")),
+                        );
+                        // Input Monitoring can be granted while the app is open. Keep the
+                        // background process alive and recover without requiring a restart.
+                        thread::sleep(Duration::from_secs(2));
+                        continue;
                     }
-                    let _ = app.emit("listener-error", message);
-                    refresh_tray(&app);
-                    return;
-                }
-            };
+                };
 
-            if let Ok(mut slot) = state.listener_error.write() {
-                *slot = None;
+                update_listener_state(&app, &state, true, None);
+                let started = Instant::now();
+                let mut runtime = InputRuntime::default();
+                for event in tap.iter() {
+                    runtime.handle(event.kind, &app, &state, started.elapsed());
+                }
+                update_listener_state(
+                    &app,
+                    &state,
+                    false,
+                    Some("全局键盘监听已停止，正在重新连接".into()),
+                );
+                thread::sleep(Duration::from_millis(500));
             }
-            state.listener_running.store(true, Ordering::Relaxed);
-            refresh_tray(&app);
-            let started = Instant::now();
-            let mut runtime = InputRuntime::default();
-            for event in tap.iter() {
-                runtime.handle(event.kind, &app, &state, started.elapsed());
-            }
-            state.listener_running.store(false, Ordering::Relaxed);
-            refresh_tray(&app);
         })
         .expect("failed to spawn global input listener");
+}
+
+fn update_listener_state(app: &AppHandle, state: &AppState, running: bool, error: Option<String>) {
+    let mut changed = state.listener_running.swap(running, Ordering::Relaxed) != running;
+    if let Ok(mut slot) = state.listener_error.write() {
+        changed = *slot != error;
+        *slot = error.clone();
+    }
+    if changed {
+        if let Some(message) = error {
+            let _ = app.emit("listener-error", message);
+        }
+        refresh_tray(app);
+    }
 }
 
 #[derive(Default)]
