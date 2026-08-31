@@ -11,7 +11,7 @@ permissions:
   contents: read
 
 concurrency:
-  group: package-main
+  group: package-${{ github.event.workflow_run.event || github.event_name }}
   cancel-in-progress: true
 
 env:
