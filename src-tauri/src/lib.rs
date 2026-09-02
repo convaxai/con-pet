@@ -617,34 +617,6 @@ fn format_trigger_command(command: &TriggerCommand, macos: bool, windows: bool) 
     steps.join(" → ")
 }
 
-#[cfg(test)]
-mod trigger_command_label_tests {
-    use super::{
-        config::{CommandKey, TriggerChord, TriggerCommand, TriggerModifier},
-        format_trigger_command,
-    };
-
-    #[test]
-    fn formats_platform_primary_modifier_and_ordered_steps() {
-        let copy_then_space = TriggerCommand {
-            version: 1,
-            steps: vec![
-                TriggerChord::new(CommandKey::KeyC, vec![TriggerModifier::Primary]),
-                TriggerChord::plain(CommandKey::Space),
-            ],
-        };
-
-        assert_eq!(
-            format_trigger_command(&copy_then_space, true, false),
-            "⌘ + C → Space"
-        );
-        assert_eq!(
-            format_trigger_command(&copy_then_space, false, true),
-            "Ctrl + C → Space"
-        );
-    }
-}
-
 fn show_settings(app: &AppHandle) {
     if let Some(window) = app.get_webview_window("main") {
         let _ = window.show();
@@ -817,4 +789,32 @@ pub fn run() {
                 }
             }
         });
+}
+
+#[cfg(test)]
+mod trigger_command_label_tests {
+    use super::{
+        config::{CommandKey, TriggerChord, TriggerCommand, TriggerModifier},
+        format_trigger_command,
+    };
+
+    #[test]
+    fn formats_platform_primary_modifier_and_ordered_steps() {
+        let copy_then_space = TriggerCommand {
+            version: 1,
+            steps: vec![
+                TriggerChord::new(CommandKey::KeyC, vec![TriggerModifier::Primary]),
+                TriggerChord::plain(CommandKey::Space),
+            ],
+        };
+
+        assert_eq!(
+            format_trigger_command(&copy_then_space, true, false),
+            "⌘ + C → Space"
+        );
+        assert_eq!(
+            format_trigger_command(&copy_then_space, false, true),
+            "Ctrl + C → Space"
+        );
+    }
 }

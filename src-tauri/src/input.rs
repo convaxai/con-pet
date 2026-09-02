@@ -94,10 +94,11 @@ enum ModifierPlatform {
     WindowsOrLinux,
 }
 
-#[cfg(target_os = "macos")]
-const CURRENT_MODIFIER_PLATFORM: ModifierPlatform = ModifierPlatform::MacOs;
-#[cfg(not(target_os = "macos"))]
-const CURRENT_MODIFIER_PLATFORM: ModifierPlatform = ModifierPlatform::WindowsOrLinux;
+const CURRENT_MODIFIER_PLATFORM: ModifierPlatform = if cfg!(target_os = "macos") {
+    ModifierPlatform::MacOs
+} else {
+    ModifierPlatform::WindowsOrLinux
+};
 
 #[derive(Default)]
 struct InputRuntime {
