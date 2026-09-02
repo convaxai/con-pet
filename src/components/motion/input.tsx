@@ -33,14 +33,15 @@ export const Input = forwardRef<HTMLInputElement, InputProps>(function Input(
     <div
       ref={fieldRef}
       className={cn(
-        "relative h-10 overflow-hidden rounded-full border border-border bg-background transition-colors",
-        "focus-within:border-foreground/45 focus-within:ring-2 focus-within:ring-ring/25",
-        error && "border-red-400 ring-2 ring-red-400/15",
+        "relative h-10 overflow-hidden rounded-full border border-border bg-background",
+        "transition-[border-color,box-shadow,background-color] duration-200 hover:border-border-strong",
+        !error && "focus-within:border-ring/70 focus-within:bg-card/70 focus-within:ring-2 focus-within:ring-ring/30",
+        error && "border-red-400 ring-2 ring-red-400/15 focus-within:border-red-400 focus-within:ring-red-400/25",
         props.disabled && "opacity-60",
       )}
     >
       {leftIcon ? (
-        <span className="pointer-events-none absolute left-3.5 top-1/2 flex -translate-y-1/2 items-center text-muted-foreground [&_svg]:size-4">
+        <span aria-hidden="true" className="pointer-events-none absolute left-3.5 top-1/2 flex -translate-y-1/2 items-center text-muted-foreground [&_svg]:size-4">
           {leftIcon}
         </span>
       ) : null}

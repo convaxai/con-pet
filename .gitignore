@@ -4,10 +4,12 @@
 # Build outputs
 /dist/
 /dist-ssr/
+/src-tauri/tauri.release.conf.json
 
 # Local runtime data and backups
 /.pet-runs/
 /.codex-backups/
+/artifacts/
 
 # Local configuration
 *.local

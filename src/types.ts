@@ -9,10 +9,74 @@ export type PositionMode =
 
 export type MonitorMode = "cursor" | "primary" | "random";
 
+export type TriggerModifier = "primary" | "control" | "alt" | "shift" | "meta";
+
+type Letter =
+  | "A" | "B" | "C" | "D" | "E" | "F" | "G" | "H" | "I" | "J" | "K" | "L" | "M"
+  | "N" | "O" | "P" | "Q" | "R" | "S" | "T" | "U" | "V" | "W" | "X" | "Y" | "Z";
+type Digit = "0" | "1" | "2" | "3" | "4" | "5" | "6" | "7" | "8" | "9";
+type FunctionNumber =
+  | "1" | "2" | "3" | "4" | "5" | "6" | "7" | "8" | "9" | "10" | "11" | "12"
+  | "13" | "14" | "15" | "16" | "17" | "18" | "19" | "20" | "21" | "22" | "23" | "24";
+
+export type CommandKey =
+  | `Key${Letter}`
+  | `Digit${Digit}`
+  | `F${FunctionNumber}`
+  | `Numpad${Digit}`
+  | "ArrowUp"
+  | "ArrowDown"
+  | "ArrowLeft"
+  | "ArrowRight"
+  | "Home"
+  | "End"
+  | "PageUp"
+  | "PageDown"
+  | "Insert"
+  | "Delete"
+  | "Escape"
+  | "Tab"
+  | "Space"
+  | "Enter"
+  | "Backspace"
+  | "Backquote"
+  | "Minus"
+  | "Equal"
+  | "BracketLeft"
+  | "BracketRight"
+  | "Backslash"
+  | "Semicolon"
+  | "Quote"
+  | "Comma"
+  | "Period"
+  | "Slash"
+  | "NumpadAdd"
+  | "NumpadSubtract"
+  | "NumpadMultiply"
+  | "NumpadDivide"
+  | "NumpadEnter"
+  | "NumpadDecimal"
+  | "NumLock"
+  | "PrintScreen"
+  | "ScrollLock"
+  | "Pause"
+  | "ContextMenu"
+  | "IntlBackslash";
+
+export interface TriggerChord {
+  modifiers: TriggerModifier[];
+  key: CommandKey;
+}
+
+export interface TriggerCommand {
+  version: 1;
+  steps: TriggerChord[];
+}
+
 export interface AppConfig {
   locale: "zh-CN" | "en";
   enabled: boolean;
-  keyword: string;
+  triggerCommand: TriggerCommand;
   cooldownMs: number;
   sequenceTimeoutMs: number;
   loops: number;

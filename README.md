@@ -2,13 +2,14 @@
 
 [English](README.md) | [简体中文](README.zh-CN.md)
 
-Con Pet is an always-available desktop companion for Windows and macOS. When you type a configured keyword in any application, Con Pet plays a transparent, click-through pet animation on your screen.
+Con Pet is an always-available desktop companion for Windows and macOS. When you enter a configured keyboard command in any application, Con Pet plays a transparent, click-through pet animation on your screen.
 
 ## Features
 
-- Observes only newly typed keys. The default keyword is `mj`, the default pet is Spider-Man 4, and English matching is case-insensitive.
-- Keeps at most one keyword-length buffer. Backspace removes one character; shortcuts, spaces, Enter, and other control keys interrupt the sequence; stale input expires after the configured timeout.
-- Reliably supports physical English A–Z keys on Windows and macOS. Unicode text can also match when the platform hook supplies committed text, but most Chinese IMEs expose only their physical Pinyin keys to a global hook.
+- Records structured commands made from shortcuts and ordered key presses. The default is `M → J`; examples include `⌘ + C` on macOS, `Ctrl + C` on Windows, and `Space → Space` on either platform.
+- Stores stable physical key identities rather than typed text. Holding a key never counts as repeated presses, exact modifiers must match, and incomplete sequences expire after the configured delay.
+- Uses a cross-platform Primary modifier: Command on macOS and Control on Windows. Platform-specific Control/Windows-key combinations remain distinct.
+- Observes global keyboard events without registering, replacing, or swallowing shortcuts. An existing copy command still copies while Con Pet responds alongside it; system-reserved commands may not be observable.
 - Bundles 100 popular Codex Pets for offline use and also discovers `~/.codex/pets/*/pet.json` automatically.
 - Includes a visual pet gallery with search, animated hover previews, and direct import of a standard Pet ZIP.
 - Randomly selects among the nine standard Codex Pet animation states on each trigger, avoiding immediate repeats.

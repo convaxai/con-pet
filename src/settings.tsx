@@ -1,7 +1,23 @@
 import { invoke } from "@tauri-apps/api/core";
+import { getVersion } from "@tauri-apps/api/app";
 import { listen, type UnlistenFn } from "@tauri-apps/api/event";
 import { open } from "@tauri-apps/plugin-dialog";
-import { ArrowLeft, Pause, Play, Search, SlidersHorizontal, Upload } from "lucide-react";
+import { relaunch } from "@tauri-apps/plugin-process";
+import { check, type DownloadEvent } from "@tauri-apps/plugin-updater";
+import {
+  ArrowLeft,
+  Check,
+  CornerDownLeft,
+  Download,
+  Keyboard as KeyboardIcon,
+  Pause,
+  Play,
+  RefreshCw,
+  Search,
+  SlidersHorizontal,
+  Space,
+  Upload,
+} from "lucide-react";
 import { motion, useReducedMotion } from "motion/react";
 import {
   useCallback,
@@ -9,7 +25,9 @@ import {
   useMemo,
   useRef,
   useState,
+  type FocusEvent,
   type FormEvent,
+  type KeyboardEvent,
   type ReactNode,
 } from "react";
 import { createRoot } from "react-dom/client";
@@ -40,9 +58,19 @@ import {
   shouldAutoRequestInputMonitoring,
 } from "./input-permission";
 import { cn } from "./lib/utils";
+import {
+  MAX_TRIGGER_STEPS,
+  chordForKeyboardEvent,
+  commandKeyLabel,
+  formatTriggerCommand,
+  isModifierCode,
+  modifierLabel,
+  modifiersForKeyboardEvent,
+} from "./trigger-command";
 import type {
   AnimationName,
   AppConfig,
+  CommandKey,
   MarketInstallResult,
   MonitorMode,
   PetChoice,
@@ -50,6 +78,9 @@ import type {
   PetThumbnail,
   PositionMode,
   RuntimeStatus,
+  TriggerChord,
+  TriggerCommand,
+  TriggerModifier,
 } from "./types";
 
 interface LocalPet {
@@ -480,6 +511,12 @@ function SettingsApp() {
           : "loading";
   const currentPet =
     pets.find((pet) => pet.manifestPath === config.petManifestPath) ?? pets[0];
+  const triggerLabel = formatTriggerCommand(
+    draft.triggerCommand,
+    runtime.platform,
+    tx("spaceKey"),
+    tx("enterKey"),
+  );
 
   if (page === "pets") {
     return (
@@ -522,7 +559,7 @@ function SettingsApp() {
             <h1>Con Pet</h1>
           </div>
           <div className="header-controls">
-            <span className="status-copy">{tx("keywordStatus", { keyword: draft.keyword })}</span>
+            <span className="status-copy">{tx("commandStatus", { command: triggerLabel })}</span>
             <AnimatedBadge status={listenerBadgeStatus}>
               {listenerLabel}
             </AnimatedBadge>
@@ -570,14 +607,24 @@ function SettingsApp() {
                 label={tx("enabled")}
               />
             </div>
-            <FormField label={tx("keyword")} hint={tx("keywordHint")}>
-              <Input
-                value={draft.keyword}
-                maxLength={64}
-                autoComplete="off"
-                spellCheck={false}
-                placeholder={tx("keywordPlaceholder")}
-                onValueChange={(keyword) => setDraft({ ...draft, keyword })}
+            <FormField htmlFor="trigger-command" label={tx("command")} hint={tx("commandHint")}>
+              <TriggerRecorder
+                id="trigger-command"
+                command={draft.triggerCommand}
+                platform={runtime.platform}
+                label={tx("command")}
+                spaceLabel={tx("spaceKey")}
+                enterLabel={tx("enterKey")}
+                recordLabel={tx("recordCommand")}
+                recordingLabel={tx("recordingCommand")}
+                finishLabel={tx("finishRecording")}
+                pressLabel={tx("pressCommand")}
+                instructions={tx("recordingInstructions")}
+                unsupportedLabel={tx("unsupportedKey")}
+                maximumLabel={tx("maximumCommandSteps")}
+                onValueChange={(triggerCommand) =>
+                  setDraft((current) => current ? { ...current, triggerCommand } : current)
+                }
               />
             </FormField>
           </section>
@@ -645,6 +692,8 @@ function SettingsApp() {
               />
             </div>
           </section>
+
+          <SoftwareUpdateCard locale={locale} />
 
           <BouncyAccordion
             title={tx("advanced")}
@@ -767,18 +816,399 @@ function SettingsApp() {
   );
 }
 
+type UpdatePhase =
+  | "idle"
+  | "checking"
+  | "downloading"
+  | "restarting"
+  | "current"
+  | "error";
+
+function SoftwareUpdateCard({ locale }: { locale: Locale }) {
+  const [currentVersion, setCurrentVersion] = useState("—");
+  const [nextVersion, setNextVersion] = useState<string | null>(null);
+  const [phase, setPhase] = useState<UpdatePhase>("idle");
+  const [progress, setProgress] = useState<number | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const runningRef = useRef(false);
+  const running = phase === "checking" || phase === "downloading" || phase === "restarting";
+  const tx = useCallback(
+    (key: Parameters<typeof translate>[1], values?: Record<string, string | number>) =>
+      translate(locale, key, values),
+    [locale],
+  );
+
+  useEffect(() => {
+    void getVersion().then(setCurrentVersion).catch(() => undefined);
+  }, []);
+
+  const runUpdate = useCallback(async () => {
+    if (runningRef.current) return;
+    runningRef.current = true;
+    setPhase("checking");
+    setNextVersion(null);
+    setProgress(null);
+    setError(null);
+
+    try {
+      const update = await check({ timeout: 30_000 });
+      if (!update) {
+        setPhase("current");
+        return;
+      }
+
+      setNextVersion(update.version);
+      setPhase("downloading");
+      let downloaded = 0;
+      let total: number | undefined;
+      const trackProgress = (event: DownloadEvent) => {
+        if (event.event === "Started") {
+          downloaded = 0;
+          total = event.data.contentLength;
+          setProgress(total ? 0 : null);
+        } else if (event.event === "Progress") {
+          downloaded += event.data.chunkLength;
+          setProgress(total ? Math.min(100, Math.round((downloaded / total) * 100)) : null);
+        } else {
+          setProgress(100);
+        }
+      };
+      await update.downloadAndInstall(trackProgress);
+      setPhase("restarting");
+      await relaunch();
+    } catch (updateError) {
+      setError(String(updateError));
+      setPhase("error");
+    } finally {
+      runningRef.current = false;
+    }
+  }, []);
+
+  useEffect(() => {
+    let unlisten: UnlistenFn | undefined;
+    void listen("check-update-requested", () => {
+      void runUpdate();
+    }).then((dispose) => {
+      unlisten = dispose;
+    });
+    return () => unlisten?.();
+  }, [runUpdate]);
+
+  let status = tx("updateReady");
+  if (phase === "checking") status = tx("updateChecking");
+  if (phase === "downloading") {
+    status = progress === null
+      ? tx("updateDownloading")
+      : tx("updateDownloadingProgress", { progress });
+  }
+  if (phase === "restarting") status = tx("updateRestarting");
+  if (phase === "current") status = tx("updateCurrent");
+  if (phase === "error") status = tx("updateFailed");
+
+  return (
+    <section className="card update-card">
+      <div className="update-copy">
+        <span className="section-label">{tx("softwareUpdate")}</span>
+        <h2>{status}</h2>
+        <p>
+          {nextVersion
+            ? tx("updateVersion", { current: currentVersion, next: nextVersion })
+            : tx("currentVersion", { version: currentVersion })}
+        </p>
+        {error ? <small title={error}>{error}</small> : null}
+      </div>
+      <Button
+        variant="secondary"
+        ripple
+        disabled={running}
+        onClick={() => void runUpdate()}
+      >
+        {phase === "downloading" ? (
+          <Download className="size-3.5" />
+        ) : (
+          <RefreshCw className={cn("size-3.5", running && "animate-spin")} />
+        )}
+        {running ? tx("updating") : tx("checkForUpdates")}
+      </Button>
+    </section>
+  );
+}
+
+function TriggerRecorder({
+  id,
+  command,
+  platform,
+  label,
+  spaceLabel,
+  enterLabel,
+  recordLabel,
+  recordingLabel,
+  finishLabel,
+  pressLabel,
+  instructions,
+  unsupportedLabel,
+  maximumLabel,
+  onValueChange,
+}: {
+  id: string;
+  command: TriggerCommand;
+  platform: string;
+  label: string;
+  spaceLabel: string;
+  enterLabel: string;
+  recordLabel: string;
+  recordingLabel: string;
+  finishLabel: string;
+  pressLabel: string;
+  instructions: string;
+  unsupportedLabel: string;
+  maximumLabel: string;
+  onValueChange: (command: TriggerCommand) => void;
+}) {
+  const [recording, setRecording] = useState(false);
+  const [sessionSteps, setSessionSteps] = useState<TriggerChord[] | null>(null);
+  const [heldModifiers, setHeldModifiers] = useState<TriggerModifier[]>([]);
+  const [announcement, setAnnouncement] = useState("");
+  const originalCommand = useRef(command);
+  const sessionStepsRef = useRef<TriggerChord[] | null>(null);
+  const stepsContainerRef = useRef<HTMLSpanElement>(null);
+  const ignoreClickAfterBlur = useRef(false);
+
+  const awaitingFirstKey = recording && sessionSteps === null;
+  const visibleSteps = awaitingFirstKey
+    ? []
+    : recording && sessionSteps !== null
+      ? sessionSteps
+      : command.steps;
+  const visibleCommand: TriggerCommand = { version: 1, steps: visibleSteps };
+  const commandLabel = visibleSteps.length > 0
+    ? formatTriggerCommand(visibleCommand, platform, spaceLabel, enterLabel)
+    : pressLabel;
+
+  useEffect(() => {
+    if (!recording || !stepsContainerRef.current) return;
+    stepsContainerRef.current.scrollLeft = stepsContainerRef.current.scrollWidth;
+  }, [heldModifiers, recording, sessionSteps]);
+
+  useEffect(() => () => {
+    void invoke("set_command_recording", { recording: false });
+  }, []);
+
+  const startRecording = () => {
+    void invoke("set_command_recording", { recording: true });
+    originalCommand.current = command;
+    sessionStepsRef.current = null;
+    setSessionSteps(null);
+    setHeldModifiers([]);
+    setAnnouncement(recordingLabel);
+    setRecording(true);
+  };
+
+  const finishRecording = () => {
+    void invoke("set_command_recording", { recording: false });
+    const recorded = sessionStepsRef.current;
+    if (recorded?.length === 0) onValueChange(originalCommand.current);
+    setRecording(false);
+    setSessionSteps(null);
+    setHeldModifiers([]);
+    setAnnouncement("");
+    sessionStepsRef.current = null;
+  };
+
+  const handleKeyDown = (event: KeyboardEvent<HTMLButtonElement>) => {
+    if (!recording) return;
+    const isComposing = event.nativeEvent.isComposing || event.nativeEvent.keyCode === 229;
+    const hasModifier = event.altKey || event.ctrlKey || event.metaKey || event.shiftKey;
+
+    if (event.code === "Tab" && !hasModifier) {
+      finishRecording();
+      return;
+    }
+
+    event.preventDefault();
+    event.stopPropagation();
+
+    if (isComposing) {
+      setAnnouncement(unsupportedLabel);
+      return;
+    }
+    if (event.repeat) return;
+    if (isModifierCode(event.code)) {
+      setHeldModifiers(modifiersForKeyboardEvent(event, platform));
+      return;
+    }
+    if (event.code === "Escape" && !hasModifier) {
+      finishRecording();
+      return;
+    }
+    if (event.code === "Backspace" && !hasModifier) {
+      const current = sessionStepsRef.current ?? [];
+      if (current.length === 0) return;
+      const next = current.slice(0, -1);
+      sessionStepsRef.current = next;
+      setSessionSteps(next);
+      if (next.length > 0) {
+        const nextCommand: TriggerCommand = { version: 1, steps: next };
+        onValueChange(nextCommand);
+        setAnnouncement(formatTriggerCommand(nextCommand, platform, spaceLabel, enterLabel));
+      } else {
+        onValueChange(originalCommand.current);
+        setAnnouncement(pressLabel);
+      }
+      return;
+    }
+    const chord = chordForKeyboardEvent({
+      code: event.code,
+      altKey: event.altKey,
+      ctrlKey: event.ctrlKey,
+      metaKey: event.metaKey,
+      shiftKey: event.shiftKey,
+      repeat: event.repeat,
+      isComposing,
+    }, platform);
+    if (!chord) {
+      setAnnouncement(unsupportedLabel);
+      return;
+    }
+
+    const current = sessionStepsRef.current ?? [];
+    if (current.length >= MAX_TRIGGER_STEPS) {
+      setAnnouncement(maximumLabel);
+      return;
+    }
+    const next = [...current, chord];
+    const nextCommand: TriggerCommand = { version: 1, steps: next };
+    sessionStepsRef.current = next;
+    setSessionSteps(next);
+    setHeldModifiers([]);
+    setAnnouncement(formatTriggerCommand(nextCommand, platform, spaceLabel, enterLabel));
+    onValueChange(nextCommand);
+  };
+
+  const handleKeyUp = (event: KeyboardEvent<HTMLButtonElement>) => {
+    if (!recording || !isModifierCode(event.code)) return;
+    setHeldModifiers(modifiersForKeyboardEvent(event, platform));
+  };
+
+  const handleBlur = (event: FocusEvent<HTMLDivElement>) => {
+    if (!recording || event.currentTarget.contains(event.relatedTarget as Node | null)) return;
+    ignoreClickAfterBlur.current = true;
+    window.setTimeout(() => {
+      ignoreClickAfterBlur.current = false;
+    }, 0);
+    finishRecording();
+  };
+
+  return (
+    <div className="trigger-recorder-shell" onBlur={handleBlur}>
+      <button
+        id={id}
+        type="button"
+        className={cn("trigger-recorder", recording && "is-recording")}
+        aria-label={`${recording ? recordingLabel : label}: ${commandLabel}`}
+        aria-describedby={`${id}-instructions`}
+        aria-pressed={recording}
+        onClick={(event) => {
+          if (ignoreClickAfterBlur.current) return;
+          event.currentTarget.focus();
+          if (recording) finishRecording();
+          else startRecording();
+        }}
+        onKeyDown={handleKeyDown}
+        onKeyUp={handleKeyUp}
+      >
+        <span className="trigger-recorder-leading" aria-hidden="true">
+          <KeyboardIcon />
+        </span>
+        <span ref={stepsContainerRef} className="trigger-command-steps" aria-hidden="true">
+          {visibleSteps.length > 0 ? visibleSteps.map((step, index) => (
+            <span className="trigger-command-step" key={`${index}-${step.key}`}>
+              {index > 0 ? <span className="trigger-sequence-separator">→</span> : null}
+              <TriggerChordView
+                chord={step}
+                platform={platform}
+                spaceLabel={spaceLabel}
+                enterLabel={enterLabel}
+              />
+            </span>
+          )) : <span className="trigger-recorder-placeholder">{pressLabel}</span>}
+          {recording && heldModifiers.length > 0 ? (
+            <span className="trigger-command-step is-ghost">
+              {visibleSteps.length > 0 ? <span className="trigger-sequence-separator">→</span> : null}
+              {heldModifiers.map((modifier, index) => (
+                <span className="trigger-chord-token" key={modifier}>
+                  {index > 0 ? <span className="trigger-chord-separator">+</span> : null}
+                  <kbd>{modifierLabel(modifier, platform)}</kbd>
+                </span>
+              ))}
+              <span className="trigger-chord-separator">+</span>
+              <kbd>…</kbd>
+            </span>
+          ) : null}
+        </span>
+        <span className="trigger-recorder-action" aria-hidden="true">
+          {recording ? <Check /> : null}
+          {recording ? finishLabel : recordLabel}
+        </span>
+      </button>
+      <span id={`${id}-instructions`} className="sr-only">{instructions}</span>
+      <span className="sr-only" role="status" aria-live="polite">{announcement}</span>
+    </div>
+  );
+}
+
+function TriggerChordView({
+  chord,
+  platform,
+  spaceLabel,
+  enterLabel,
+}: {
+  chord: TriggerChord;
+  platform: string;
+  spaceLabel: string;
+  enterLabel: string;
+}) {
+  const tokens: Array<{ id: string; label: string; key?: CommandKey }> = [
+    ...chord.modifiers.map((modifier) => ({
+      id: modifier,
+      label: modifierLabel(modifier, platform),
+    })),
+    {
+      id: chord.key,
+      label: commandKeyLabel(chord.key, spaceLabel, enterLabel),
+      key: chord.key,
+    },
+  ];
+
+  return tokens.map((token, index) => (
+    <span className="trigger-chord-token" key={token.id}>
+      {index > 0 ? <span className="trigger-chord-separator">+</span> : null}
+      <kbd className={cn(token.key === "Space" && "is-space", token.key?.includes("Enter") && "is-enter")}>
+        {token.key === "Space" ? <Space /> : token.key?.includes("Enter") ? <CornerDownLeft /> : null}
+        <span>{token.label}</span>
+      </kbd>
+    </span>
+  ));
+}
+
 function FormField({
   label,
   hint,
+  htmlFor,
   children,
 }: {
   label: string;
   hint?: string;
+  htmlFor?: string;
   children: ReactNode;
 }) {
   return (
     <div className="form-field">
-      <span className="form-label">{label}</span>
+      {htmlFor ? (
+        <label className="form-label cursor-pointer" htmlFor={htmlFor}>{label}</label>
+      ) : (
+        <span className="form-label">{label}</span>
+      )}
       {children}
       {hint ? <small>{hint}</small> : null}
     </div>
