@@ -311,4 +311,13 @@ jobs:
               --latest
           fi
 
-          gh release upload "$release_tag" release/* --clobber --repo "$GITHUB_REPOSITORY"
+          gh release upload "$release_tag" \
+            release/Con-Pet-macOS-universal.dmg \
+            release/Con-Pet-Windows-x64.exe \
+            release/Con-Pet-macOS-universal.app.tar.gz \
+            release/Con-Pet-macOS-universal.app.tar.gz.sig \
+            release/Con-Pet-Windows-x64.exe.sig \
+            release/latest.json \
+            release/SHA256SUMS.txt \
+            --clobber \
+            --repo "$GITHUB_REPOSITORY"
