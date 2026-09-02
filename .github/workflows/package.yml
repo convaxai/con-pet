@@ -34,7 +34,7 @@ jobs:
             os: macos-latest
             target: universal-apple-darwin
             rust-targets: aarch64-apple-darwin,x86_64-apple-darwin
-            bundle: dmg
+            bundle: app,dmg
             artifact: con-pet-macos-universal
             path: src-tauri/target/universal-apple-darwin/release/bundle/dmg/*.dmg
             update-path: src-tauri/target/universal-apple-darwin/release/bundle/macos/*.app.tar.gz
@@ -45,7 +45,7 @@ jobs:
             bundle: nsis
             artifact: con-pet-windows-x64
             path: src-tauri/target/x86_64-pc-windows-msvc/release/bundle/nsis/*.exe
-            update-path: src-tauri/target/x86_64-pc-windows-msvc/release/bundle/nsis/*.nsis.zip
+            update-path: src-tauri/target/x86_64-pc-windows-msvc/release/bundle/nsis/*.exe
     runs-on: ${{ matrix.os }}
 
     steps:
@@ -222,20 +222,17 @@ jobs:
           mac_dmg="$(find release -type f -name '*.dmg' -print -quit)"
           windows_exe="$(find release -type f -name '*.exe' -print -quit)"
           mac_update="$(find release -type f -name '*.app.tar.gz' -print -quit)"
-          windows_update="$(find release -type f -name '*.nsis.zip' -print -quit)"
           test -n "$mac_dmg"
           test -n "$windows_exe"
           test -n "$mac_update"
-          test -n "$windows_update"
           test -f "${mac_update}.sig"
-          test -f "${windows_update}.sig"
+          test -f "${windows_exe}.sig"
 
           mv "$mac_dmg" release/Con-Pet-macOS-universal.dmg
-          mv "$windows_exe" release/Con-Pet-Windows-x64.exe
           mv "${mac_update}.sig" release/Con-Pet-macOS-universal.app.tar.gz.sig
           mv "$mac_update" release/Con-Pet-macOS-universal.app.tar.gz
-          mv "${windows_update}.sig" release/Con-Pet-Windows-x64.nsis.zip.sig
-          mv "$windows_update" release/Con-Pet-Windows-x64.nsis.zip
+          mv "${windows_exe}.sig" release/Con-Pet-Windows-x64.exe.sig
+          mv "$windows_exe" release/Con-Pet-Windows-x64.exe
 
           signing_mode="$(cat release/macos-signing-mode.txt)"
           [[ "$signing_mode" = 'adhoc' || "$signing_mode" = 'developer-id' ]]
@@ -243,7 +240,7 @@ jobs:
           rm release/macos-signing-mode.txt
 
           mac_signature="$(cat release/Con-Pet-macOS-universal.app.tar.gz.sig)"
-          windows_signature="$(cat release/Con-Pet-Windows-x64.nsis.zip.sig)"
+          windows_signature="$(cat release/Con-Pet-Windows-x64.exe.sig)"
           published_at="$(date -u +'%Y-%m-%dT%H:%M:%SZ')"
           base_url="https://github.com/${GITHUB_REPOSITORY}/releases/download/nightly"
           jq -n \
@@ -252,7 +249,7 @@ jobs:
             --arg pub_date "$published_at" \
             --arg mac_url "$base_url/Con-Pet-macOS-universal.app.tar.gz" \
             --arg mac_signature "$mac_signature" \
-            --arg windows_url "$base_url/Con-Pet-Windows-x64.nsis.zip" \
+            --arg windows_url "$base_url/Con-Pet-Windows-x64.exe" \
             --arg windows_signature "$windows_signature" \
             '{
               version: $version,
@@ -269,8 +266,7 @@ jobs:
           sha256sum \
             Con-Pet-macOS-universal.dmg \
             Con-Pet-Windows-x64.exe \
-            Con-Pet-macOS-universal.app.tar.gz \
-            Con-Pet-Windows-x64.nsis.zip > SHA256SUMS.txt
+            Con-Pet-macOS-universal.app.tar.gz > SHA256SUMS.txt
 
       - name: Publish the single rolling nightly release
         shell: bash
