@@ -1,7 +1,12 @@
-use crate::{matcher::SequenceMatcher, refresh_tray, AppState};
+use crate::{
+    config::{CommandKey, TriggerChord, TriggerModifier},
+    matcher::SequenceMatcher,
+    refresh_tray, AppState,
+};
 use keytap::{EventKind, Key, Tap};
 use serde::Serialize;
 use std::{
+    collections::HashSet,
     sync::atomic::Ordering,
     thread,
     time::{Duration, Instant, SystemTime, UNIX_EPOCH},
@@ -83,78 +88,94 @@ fn update_listener_state(app: &AppHandle, state: &AppState, running: bool, error
     }
 }
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum ModifierPlatform {
+    MacOs,
+    WindowsOrLinux,
+}
+
+#[cfg(target_os = "macos")]
+const CURRENT_MODIFIER_PLATFORM: ModifierPlatform = ModifierPlatform::MacOs;
+#[cfg(not(target_os = "macos"))]
+const CURRENT_MODIFIER_PLATFORM: ModifierPlatform = ModifierPlatform::WindowsOrLinux;
+
 #[derive(Default)]
 struct InputRuntime {
     matcher: SequenceMatcher,
-    control: bool,
-    alt: bool,
-    meta: bool,
+    held_modifiers: HashSet<Key>,
     last_trigger: Option<Duration>,
 }
 
 impl InputRuntime {
     fn handle(&mut self, event: EventKind, app: &AppHandle, state: &AppState, elapsed: Duration) {
-        match event {
-            EventKind::KeyDown(key) => {
-                self.update_modifier(key, true);
-                if is_modifier(key) {
-                    return;
-                }
+        let key_down = self.observe_event(event);
+        let Ok(config) = state.config.read().map(|value| value.clone()) else {
+            self.matcher.clear();
+            return;
+        };
+        if !config.enabled
+            || state.paused.load(Ordering::Relaxed)
+            || state.recording_command.load(Ordering::Relaxed)
+        {
+            self.matcher.clear();
+            return;
+        }
 
-                let Ok(config) = state.config.read().map(|value| value.clone()) else {
-                    return;
-                };
-                if !config.enabled || state.paused.load(Ordering::Relaxed) {
-                    self.matcher.clear();
-                    return;
-                }
-                if self.control || self.alt || self.meta {
-                    self.matcher.clear();
-                    return;
-                }
-
-                if key == Key::Backspace {
-                    self.matcher.backspace();
-                    return;
-                }
-                if resets_sequence(key) {
-                    self.matcher.clear();
-                    return;
-                }
-
-                let Some(text) = key_to_ascii(key) else {
-                    self.matcher.clear();
-                    return;
-                };
-                let matched = self.matcher.feed_text(
-                    text,
-                    &config.keyword,
-                    elapsed,
-                    Duration::from_millis(config.sequence_timeout_ms),
-                );
-                let cooled_down = self.last_trigger.is_none_or(|last| {
-                    elapsed.saturating_sub(last) >= Duration::from_millis(config.cooldown_ms)
-                });
-                if matched && cooled_down {
-                    self.last_trigger = Some(elapsed);
-                    state.trigger_count.fetch_add(1, Ordering::Relaxed);
-                    let _ = emit_trigger(app, "keyboard");
-                }
-            }
-            EventKind::KeyUp(key) => {
-                self.update_modifier(key, false);
-            }
-            EventKind::KeyRepeat(_) => {}
+        // Modifier-only, key-up and auto-repeat events update state at most. In
+        // particular, holding Space cannot synthesize a double-Space command.
+        let Some(key) = key_down else {
+            return;
+        };
+        let Some(command) = config.trigger_command.as_ref() else {
+            self.matcher.clear();
+            return;
+        };
+        let Some(key) = key_to_command_key(key) else {
+            self.matcher.clear();
+            return;
+        };
+        let chord = TriggerChord::new(
+            key,
+            modifiers_for_platform(&self.held_modifiers, CURRENT_MODIFIER_PLATFORM),
+        );
+        let matched = self.matcher.feed(
+            chord,
+            command,
+            elapsed,
+            Duration::from_millis(config.sequence_timeout_ms),
+        );
+        if matched && self.mark_trigger_if_ready(elapsed, Duration::from_millis(config.cooldown_ms))
+        {
+            state.trigger_count.fetch_add(1, Ordering::Relaxed);
+            let _ = emit_trigger(app, "keyboard");
         }
     }
 
-    fn update_modifier(&mut self, key: Key, pressed: bool) {
-        match key {
-            Key::ControlLeft | Key::ControlRight => self.control = pressed,
-            Key::AltLeft | Key::AltRight => self.alt = pressed,
-            Key::MetaLeft | Key::MetaRight => self.meta = pressed,
-            _ => {}
+    fn observe_event(&mut self, event: EventKind) -> Option<Key> {
+        match event {
+            EventKind::KeyDown(key) if is_modifier(key) => {
+                self.held_modifiers.insert(key);
+                None
+            }
+            EventKind::KeyDown(key) => Some(key),
+            EventKind::KeyUp(key) => {
+                if is_modifier(key) {
+                    self.held_modifiers.remove(&key);
+                }
+                None
+            }
+            EventKind::KeyRepeat(_) => None,
         }
+    }
+
+    fn mark_trigger_if_ready(&mut self, elapsed: Duration, cooldown: Duration) -> bool {
+        let cooled_down = self
+            .last_trigger
+            .is_none_or(|last| elapsed.saturating_sub(last) >= cooldown);
+        if cooled_down {
+            self.last_trigger = Some(elapsed);
+        }
+        cooled_down
     }
 }
 
@@ -172,41 +193,161 @@ fn is_modifier(key: Key) -> bool {
     )
 }
 
-fn resets_sequence(key: Key) -> bool {
-    matches!(
-        key,
-        Key::Enter | Key::Tab | Key::Space | Key::Escape | Key::Delete
-    )
+fn modifiers_for_platform(held: &HashSet<Key>, platform: ModifierPlatform) -> Vec<TriggerModifier> {
+    let has_shift = held.contains(&Key::ShiftLeft) || held.contains(&Key::ShiftRight);
+    let has_control = held.contains(&Key::ControlLeft) || held.contains(&Key::ControlRight);
+    let has_alt = held.contains(&Key::AltLeft) || held.contains(&Key::AltRight);
+    let has_meta = held.contains(&Key::MetaLeft) || held.contains(&Key::MetaRight);
+    let mut modifiers = Vec::with_capacity(4);
+
+    match platform {
+        ModifierPlatform::MacOs => {
+            if has_meta {
+                modifiers.push(TriggerModifier::Primary);
+            }
+            if has_control {
+                modifiers.push(TriggerModifier::Control);
+            }
+        }
+        ModifierPlatform::WindowsOrLinux => {
+            if has_control {
+                modifiers.push(TriggerModifier::Primary);
+            }
+        }
+    }
+    if has_alt {
+        modifiers.push(TriggerModifier::Alt);
+    }
+    if has_shift {
+        modifiers.push(TriggerModifier::Shift);
+    }
+    if platform == ModifierPlatform::WindowsOrLinux && has_meta {
+        modifiers.push(TriggerModifier::Meta);
+    }
+    modifiers
 }
 
-fn key_to_ascii(key: Key) -> Option<&'static str> {
+fn key_to_command_key(key: Key) -> Option<CommandKey> {
     Some(match key {
-        Key::A => "a",
-        Key::B => "b",
-        Key::C => "c",
-        Key::D => "d",
-        Key::E => "e",
-        Key::F => "f",
-        Key::G => "g",
-        Key::H => "h",
-        Key::I => "i",
-        Key::J => "j",
-        Key::K => "k",
-        Key::L => "l",
-        Key::M => "m",
-        Key::N => "n",
-        Key::O => "o",
-        Key::P => "p",
-        Key::Q => "q",
-        Key::R => "r",
-        Key::S => "s",
-        Key::T => "t",
-        Key::U => "u",
-        Key::V => "v",
-        Key::W => "w",
-        Key::X => "x",
-        Key::Y => "y",
-        Key::Z => "z",
+        Key::A => CommandKey::KeyA,
+        Key::B => CommandKey::KeyB,
+        Key::C => CommandKey::KeyC,
+        Key::D => CommandKey::KeyD,
+        Key::E => CommandKey::KeyE,
+        Key::F => CommandKey::KeyF,
+        Key::G => CommandKey::KeyG,
+        Key::H => CommandKey::KeyH,
+        Key::I => CommandKey::KeyI,
+        Key::J => CommandKey::KeyJ,
+        Key::K => CommandKey::KeyK,
+        Key::L => CommandKey::KeyL,
+        Key::M => CommandKey::KeyM,
+        Key::N => CommandKey::KeyN,
+        Key::O => CommandKey::KeyO,
+        Key::P => CommandKey::KeyP,
+        Key::Q => CommandKey::KeyQ,
+        Key::R => CommandKey::KeyR,
+        Key::S => CommandKey::KeyS,
+        Key::T => CommandKey::KeyT,
+        Key::U => CommandKey::KeyU,
+        Key::V => CommandKey::KeyV,
+        Key::W => CommandKey::KeyW,
+        Key::X => CommandKey::KeyX,
+        Key::Y => CommandKey::KeyY,
+        Key::Z => CommandKey::KeyZ,
+        Key::Digit0 => CommandKey::Digit0,
+        Key::Digit1 => CommandKey::Digit1,
+        Key::Digit2 => CommandKey::Digit2,
+        Key::Digit3 => CommandKey::Digit3,
+        Key::Digit4 => CommandKey::Digit4,
+        Key::Digit5 => CommandKey::Digit5,
+        Key::Digit6 => CommandKey::Digit6,
+        Key::Digit7 => CommandKey::Digit7,
+        Key::Digit8 => CommandKey::Digit8,
+        Key::Digit9 => CommandKey::Digit9,
+        Key::F1 => CommandKey::F1,
+        Key::F2 => CommandKey::F2,
+        Key::F3 => CommandKey::F3,
+        Key::F4 => CommandKey::F4,
+        Key::F5 => CommandKey::F5,
+        Key::F6 => CommandKey::F6,
+        Key::F7 => CommandKey::F7,
+        Key::F8 => CommandKey::F8,
+        Key::F9 => CommandKey::F9,
+        Key::F10 => CommandKey::F10,
+        Key::F11 => CommandKey::F11,
+        Key::F12 => CommandKey::F12,
+        Key::F13 => CommandKey::F13,
+        Key::F14 => CommandKey::F14,
+        Key::F15 => CommandKey::F15,
+        Key::F16 => CommandKey::F16,
+        Key::F17 => CommandKey::F17,
+        Key::F18 => CommandKey::F18,
+        Key::F19 => CommandKey::F19,
+        Key::F20 => CommandKey::F20,
+        Key::F21 => CommandKey::F21,
+        Key::F22 => CommandKey::F22,
+        Key::F23 => CommandKey::F23,
+        Key::F24 => CommandKey::F24,
+        Key::ArrowUp => CommandKey::ArrowUp,
+        Key::ArrowDown => CommandKey::ArrowDown,
+        Key::ArrowLeft => CommandKey::ArrowLeft,
+        Key::ArrowRight => CommandKey::ArrowRight,
+        Key::Home => CommandKey::Home,
+        Key::End => CommandKey::End,
+        Key::PageUp => CommandKey::PageUp,
+        Key::PageDown => CommandKey::PageDown,
+        Key::Insert => CommandKey::Insert,
+        Key::Delete => CommandKey::Delete,
+        Key::Escape => CommandKey::Escape,
+        Key::Tab => CommandKey::Tab,
+        Key::Space => CommandKey::Space,
+        Key::Enter => CommandKey::Enter,
+        Key::Backspace => CommandKey::Backspace,
+        Key::Backtick => CommandKey::Backquote,
+        Key::Minus => CommandKey::Minus,
+        Key::Equal => CommandKey::Equal,
+        Key::BracketLeft => CommandKey::BracketLeft,
+        Key::BracketRight => CommandKey::BracketRight,
+        Key::Backslash => CommandKey::Backslash,
+        Key::Semicolon => CommandKey::Semicolon,
+        Key::Quote => CommandKey::Quote,
+        Key::Comma => CommandKey::Comma,
+        Key::Period => CommandKey::Period,
+        Key::Slash => CommandKey::Slash,
+        Key::Numpad0 => CommandKey::Numpad0,
+        Key::Numpad1 => CommandKey::Numpad1,
+        Key::Numpad2 => CommandKey::Numpad2,
+        Key::Numpad3 => CommandKey::Numpad3,
+        Key::Numpad4 => CommandKey::Numpad4,
+        Key::Numpad5 => CommandKey::Numpad5,
+        Key::Numpad6 => CommandKey::Numpad6,
+        Key::Numpad7 => CommandKey::Numpad7,
+        Key::Numpad8 => CommandKey::Numpad8,
+        Key::Numpad9 => CommandKey::Numpad9,
+        Key::NumpadAdd => CommandKey::NumpadAdd,
+        Key::NumpadSubtract => CommandKey::NumpadSubtract,
+        Key::NumpadMultiply => CommandKey::NumpadMultiply,
+        Key::NumpadDivide => CommandKey::NumpadDivide,
+        Key::NumpadEnter => CommandKey::Enter,
+        Key::NumpadDecimal => CommandKey::NumpadDecimal,
+        Key::NumLock => CommandKey::NumLock,
+        Key::PrintScreen => CommandKey::PrintScreen,
+        Key::ScrollLock => CommandKey::ScrollLock,
+        Key::Pause => CommandKey::Pause,
+        Key::Menu => CommandKey::ContextMenu,
+        Key::IntlBackslash => CommandKey::IntlBackslash,
+        Key::ShiftLeft
+        | Key::ShiftRight
+        | Key::ControlLeft
+        | Key::ControlRight
+        | Key::AltLeft
+        | Key::AltRight
+        | Key::MetaLeft
+        | Key::MetaRight
+        | Key::CapsLock
+        | Key::Function
+        | Key::Unknown(_) => return None,
         _ => return None,
     })
 }
@@ -214,12 +355,113 @@ fn key_to_ascii(key: Key) -> Option<&'static str> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::config::TriggerCommand;
 
     #[test]
-    fn maps_physical_letter_keys_without_interpreting_text() {
-        assert_eq!(key_to_ascii(Key::A), Some("a"));
-        assert_eq!(key_to_ascii(Key::Z), Some("z"));
-        assert_eq!(key_to_ascii(Key::Space), None);
+    fn maps_physical_keys_to_dom_codes() {
+        assert_eq!(key_to_command_key(Key::A), Some(CommandKey::KeyA));
+        assert_eq!(key_to_command_key(Key::Digit7), Some(CommandKey::Digit7));
+        assert_eq!(key_to_command_key(Key::Space), Some(CommandKey::Space));
+        assert_eq!(
+            key_to_command_key(Key::NumpadEnter),
+            Some(CommandKey::Enter)
+        );
+        assert_eq!(key_to_command_key(Key::Function), None);
         assert!(is_modifier(Key::MetaRight));
+    }
+
+    #[test]
+    fn macos_maps_command_to_primary_and_keeps_control_explicit() {
+        let held = HashSet::from([Key::MetaLeft, Key::ControlRight, Key::ShiftLeft]);
+        assert_eq!(
+            modifiers_for_platform(&held, ModifierPlatform::MacOs),
+            vec![
+                TriggerModifier::Primary,
+                TriggerModifier::Control,
+                TriggerModifier::Shift
+            ]
+        );
+    }
+
+    #[test]
+    fn windows_maps_control_to_primary_and_keeps_meta_explicit() {
+        let held = HashSet::from([Key::ControlLeft, Key::MetaRight, Key::AltLeft]);
+        assert_eq!(
+            modifiers_for_platform(&held, ModifierPlatform::WindowsOrLinux),
+            vec![
+                TriggerModifier::Primary,
+                TriggerModifier::Alt,
+                TriggerModifier::Meta
+            ]
+        );
+    }
+
+    #[test]
+    fn tracks_left_and_right_modifiers_independently() {
+        let mut runtime = InputRuntime::default();
+        assert_eq!(
+            runtime.observe_event(EventKind::KeyDown(Key::ControlLeft)),
+            None
+        );
+        assert_eq!(
+            runtime.observe_event(EventKind::KeyDown(Key::ControlRight)),
+            None
+        );
+        runtime.observe_event(EventKind::KeyUp(Key::ControlLeft));
+        assert_eq!(
+            modifiers_for_platform(&runtime.held_modifiers, ModifierPlatform::WindowsOrLinux),
+            vec![TriggerModifier::Primary]
+        );
+        runtime.observe_event(EventKind::KeyUp(Key::ControlRight));
+        assert!(runtime.held_modifiers.is_empty());
+    }
+
+    #[test]
+    fn key_repeat_is_not_fed_as_a_second_space() {
+        let mut runtime = InputRuntime::default();
+        let command = TriggerCommand {
+            version: 1,
+            steps: vec![
+                TriggerChord::plain(CommandKey::Space),
+                TriggerChord::plain(CommandKey::Space),
+            ],
+        };
+        let timeout = Duration::from_secs(3);
+
+        let first = runtime
+            .observe_event(EventKind::KeyDown(Key::Space))
+            .and_then(key_to_command_key)
+            .unwrap();
+        assert!(!runtime.matcher.feed(
+            TriggerChord::plain(first),
+            &command,
+            Duration::ZERO,
+            timeout
+        ));
+        assert_eq!(
+            runtime.observe_event(EventKind::KeyRepeat(Key::Space)),
+            None
+        );
+        runtime.observe_event(EventKind::KeyUp(Key::Space));
+        let second = runtime
+            .observe_event(EventKind::KeyDown(Key::Space))
+            .and_then(key_to_command_key)
+            .unwrap();
+        assert!(runtime.matcher.feed(
+            TriggerChord::plain(second),
+            &command,
+            Duration::from_millis(100),
+            timeout
+        ));
+    }
+
+    #[test]
+    fn all_command_sources_share_cooldown_bookkeeping() {
+        let mut runtime = InputRuntime::default();
+        let cooldown = Duration::from_millis(1_200);
+
+        assert!(runtime.mark_trigger_if_ready(Duration::ZERO, cooldown));
+        assert!(!runtime.mark_trigger_if_ready(Duration::from_millis(1_199), cooldown));
+        assert!(runtime.mark_trigger_if_ready(Duration::from_millis(1_200), cooldown));
     }
 }

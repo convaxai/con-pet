@@ -56,7 +56,7 @@
     },
     "category": "Utility",
     "shortDescription": "A configurable desktop pet for Windows and macOS.",
-    "longDescription": "Play a pet animation when a configured keyboard keyword is typed.",
+    "longDescription": "Play a pet animation when a configured keyboard command is entered.",
     "macOS": {
       "minimumSystemVersion": "10.15"
     },
@@ -67,5 +67,13 @@
       "icons/icon.icns",
       "icons/icon.ico"
     ]
+  },
+  "plugins": {
+    "updater": {
+      "endpoints": [
+        "https://github.com/convaxai/con-pet/releases/download/nightly/latest.json"
+      ],
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDdDQzc4NTVFNjE4MjIyMzgKUldRNElvSmhYb1hIZkNUSTRsaEFTUmp6a2t4b3FwdVhLcHZjSUEyck9BUVlJcU1TOHlFUk05d0YK"
+    }
   }
 }

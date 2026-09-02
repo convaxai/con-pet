@@ -4,7 +4,7 @@ mod market;
 mod matcher;
 mod pet;
 
-use config::{AppConfig, AppLocale, PositionMode};
+use config::{AppConfig, AppLocale, PositionMode, TriggerCommand, TriggerModifier};
 use serde::Serialize;
 use std::{
     path::PathBuf,
@@ -37,6 +37,7 @@ struct AppState {
     config: Arc<RwLock<AppConfig>>,
     config_path: PathBuf,
     paused: Arc<AtomicBool>,
+    recording_command: Arc<AtomicBool>,
     listener_running: Arc<AtomicBool>,
     listener_error: Arc<RwLock<Option<String>>>,
     trigger_count: Arc<AtomicU64>,
@@ -48,6 +49,7 @@ struct AppState {
 struct TrayMenuState {
     status: MenuItem<tauri::Wry>,
     settings: MenuItem<tauri::Wry>,
+    update: MenuItem<tauri::Wry>,
     test: MenuItem<tauri::Wry>,
     pause: MenuItem<tauri::Wry>,
     autostart: CheckMenuItem<tauri::Wry>,
@@ -159,6 +161,11 @@ fn set_paused(paused: bool, app: AppHandle, state: State<'_, AppState>) -> bool 
 }
 
 #[tauri::command]
+fn set_command_recording(recording: bool, state: State<'_, AppState>) {
+    state.recording_command.store(recording, Ordering::Relaxed);
+}
+
+#[tauri::command]
 fn get_autostart_enabled(app: AppHandle) -> Result<bool, String> {
     app.autolaunch()
         .is_enabled()
@@ -193,9 +200,9 @@ fn get_runtime_status(state: State<'_, AppState>) -> RuntimeStatus {
             .and_then(|value| value.clone()),
         platform: std::env::consts::OS,
         input_scope: if english {
-            "Only recent keystrokes are kept; input fields, screens, and the clipboard are never read"
+            "Only recent command steps are kept; input fields, screens, and the clipboard are never read"
         } else {
-            "只保留最近键入字符；不读取输入框、屏幕或剪贴板"
+            "只保留最近的指令步骤；不读取输入框、屏幕或剪贴板"
         },
         trigger_count: state.trigger_count.load(Ordering::Relaxed),
         overlay_render_count: state.overlay_render_count.load(Ordering::Relaxed),
@@ -306,6 +313,17 @@ fn install_tray(app: &tauri::App) -> tauri::Result<()> {
         true,
         None::<&str>,
     )?;
+    let update = MenuItem::with_id(
+        app,
+        "update",
+        if english {
+            "Check for updates…"
+        } else {
+            "检查更新…"
+        },
+        true,
+        None::<&str>,
+    )?;
     let pause = MenuItem::with_id(
         app,
         "pause",
@@ -369,6 +387,7 @@ fn install_tray(app: &tauri::App) -> tauri::Result<()> {
             &status,
             &separator_1,
             &settings,
+            &update,
             &test,
             &pause,
             &autostart,
@@ -380,6 +399,7 @@ fn install_tray(app: &tauri::App) -> tauri::Result<()> {
     app.manage(TrayMenuState {
         status,
         settings,
+        update,
         test,
         pause,
         autostart,
@@ -393,6 +413,10 @@ fn install_tray(app: &tauri::App) -> tauri::Result<()> {
         .tooltip("Con Pet")
         .on_menu_event(|app, event| match event.id.as_ref() {
             "settings" => show_settings(app),
+            "update" => {
+                show_settings(app);
+                let _ = app.emit("check-update-requested", ());
+            }
             "test" => {
                 let _ = input::emit_trigger(app, "tray");
             }
@@ -464,34 +488,45 @@ pub(crate) fn refresh_tray(app: &AppHandle) {
         .ok()
         .is_some_and(|value| value.is_some());
     let english = config.locale == AppLocale::En;
+    let trigger_label = config
+        .trigger_command
+        .as_ref()
+        .map(|command| {
+            format_trigger_command(
+                command,
+                cfg!(target_os = "macos"),
+                cfg!(target_os = "windows"),
+            )
+        })
+        .unwrap_or_else(|| "M → J".into());
     let status = if !config.enabled {
         if english {
-            format!("Disabled · Keyword: {}", config.keyword)
+            format!("Disabled · Command: {trigger_label}")
         } else {
-            format!("已停用 · 关键词：{}", config.keyword)
+            format!("已停用 · 指令：{trigger_label}")
         }
     } else if listener_failed {
         if english {
-            format!("Listener failed · Keyword: {}", config.keyword)
+            format!("Listener failed · Command: {trigger_label}")
         } else {
-            format!("监听失败 · 关键词：{}", config.keyword)
+            format!("监听失败 · 指令：{trigger_label}")
         }
     } else if paused {
         if english {
-            format!("Paused · Keyword: {}", config.keyword)
+            format!("Paused · Command: {trigger_label}")
         } else {
-            format!("已暂停 · 关键词：{}", config.keyword)
+            format!("已暂停 · 指令：{trigger_label}")
         }
     } else if listener_running {
         if english {
-            format!("Listening · Keyword: {}", config.keyword)
+            format!("Listening · Command: {trigger_label}")
         } else {
-            format!("监听中 · 关键词：{}", config.keyword)
+            format!("监听中 · 指令：{trigger_label}")
         }
     } else if english {
-        format!("Starting · Keyword: {}", config.keyword)
+        format!("Starting · Command: {trigger_label}")
     } else {
-        format!("正在启动 · 关键词：{}", config.keyword)
+        format!("正在启动 · 指令：{trigger_label}")
     };
     let _ = tray.status.set_text(status);
     let _ = tray.settings.set_text(if english {
@@ -503,6 +538,11 @@ pub(crate) fn refresh_tray(app: &AppHandle) {
         "Test animation"
     } else {
         "测试动画"
+    });
+    let _ = tray.update.set_text(if english {
+        "Check for updates…"
+    } else {
+        "检查更新…"
     });
     let _ = tray.pause.set_text(if paused && english {
         "Resume"
@@ -543,6 +583,66 @@ pub(crate) fn refresh_tray(app: &AppHandle) {
     let _ = tray
         .position_random
         .set_checked(config.position.mode == PositionMode::Random);
+}
+
+fn format_trigger_command(command: &TriggerCommand, macos: bool, windows: bool) -> String {
+    let mut steps = command
+        .steps
+        .iter()
+        .take(6)
+        .map(|step| {
+            let mut tokens = step
+                .modifiers
+                .iter()
+                .map(|modifier| match modifier {
+                    TriggerModifier::Primary if macos => "⌘",
+                    TriggerModifier::Primary => "Ctrl",
+                    TriggerModifier::Control if macos => "⌃",
+                    TriggerModifier::Control => "Control",
+                    TriggerModifier::Alt if macos => "⌥",
+                    TriggerModifier::Alt => "Alt",
+                    TriggerModifier::Shift if macos => "⇧",
+                    TriggerModifier::Shift => "Shift",
+                    TriggerModifier::Meta if windows => "Win",
+                    TriggerModifier::Meta => "Meta",
+                })
+                .collect::<Vec<_>>();
+            tokens.push(step.key.display_label());
+            tokens.join(" + ")
+        })
+        .collect::<Vec<_>>();
+    if command.steps.len() > 6 {
+        steps.push("…".into());
+    }
+    steps.join(" → ")
+}
+
+#[cfg(test)]
+mod trigger_command_label_tests {
+    use super::{
+        config::{CommandKey, TriggerChord, TriggerCommand, TriggerModifier},
+        format_trigger_command,
+    };
+
+    #[test]
+    fn formats_platform_primary_modifier_and_ordered_steps() {
+        let copy_then_space = TriggerCommand {
+            version: 1,
+            steps: vec![
+                TriggerChord::new(CommandKey::KeyC, vec![TriggerModifier::Primary]),
+                TriggerChord::plain(CommandKey::Space),
+            ],
+        };
+
+        assert_eq!(
+            format_trigger_command(&copy_then_space, true, false),
+            "⌘ + C → Space"
+        );
+        assert_eq!(
+            format_trigger_command(&copy_then_space, false, true),
+            "Ctrl + C → Space"
+        );
+    }
 }
 
 fn show_settings(app: &AppHandle) {
@@ -627,6 +727,8 @@ pub fn run() {
         ))
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_macos_permissions::init())
+        .plugin(tauri_plugin_process::init())
+        .plugin(tauri_plugin_updater::Builder::new().build())
         .setup(|app| {
             #[cfg(target_os = "macos")]
             app.handle()
@@ -638,6 +740,7 @@ pub fn run() {
                 config: Arc::new(RwLock::new(config::load(&config_path))),
                 config_path,
                 paused: Arc::new(AtomicBool::new(false)),
+                recording_command: Arc::new(AtomicBool::new(false)),
                 listener_running: Arc::new(AtomicBool::new(false)),
                 listener_error: Arc::new(RwLock::new(None)),
                 trigger_count: Arc::new(AtomicU64::new(0)),
@@ -661,7 +764,17 @@ pub fn run() {
         })
         .on_window_event(|window, event| {
             if window.label() == "main" {
+                if matches!(event, tauri::WindowEvent::Focused(false)) {
+                    window
+                        .state::<AppState>()
+                        .recording_command
+                        .store(false, Ordering::Relaxed);
+                }
                 if let tauri::WindowEvent::CloseRequested { api, .. } = event {
+                    window
+                        .state::<AppState>()
+                        .recording_command
+                        .store(false, Ordering::Relaxed);
                     api.prevent_close();
                     let _ = window.hide();
                 }
@@ -676,6 +789,7 @@ pub fn run() {
             get_pet_thumbnail,
             get_pet_preview,
             set_paused,
+            set_command_recording,
             get_autostart_enabled,
             set_autostart_enabled,
             get_runtime_status,

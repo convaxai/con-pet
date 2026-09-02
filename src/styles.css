@@ -11,7 +11,7 @@
   --color-muted-foreground: #8d94a0;
   --color-primary: #f4f4f5;
   --color-primary-foreground: #111214;
-  --color-ring: #f4f4f5;
+  --color-ring: #dcff69;
   --color-destructive: #fb7185;
 }
 
@@ -171,6 +171,25 @@ button { cursor: pointer; }
 .section-heading h2 { margin: 0; color: #eceef1; font-size: 13px; font-weight: 580; }
 .section-heading.system-heading { margin-bottom: 0; }
 .system-heading p { margin: 4px 0 0; color: #747b86; font-size: 9px; }
+.update-card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+}
+.update-copy { min-width: 0; }
+.update-copy h2 { margin: 4px 0 0; color: #eceef1; font-size: 13px; font-weight: 580; }
+.update-copy p { margin: 4px 0 0; color: #747b86; font-size: 9px; }
+.update-copy small {
+  display: block;
+  overflow: hidden;
+  max-width: 480px;
+  margin-top: 5px;
+  color: #fb8ca0;
+  font-size: 9px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
 .section-label { color: #747b86; font-size: 9px; font-weight: 580; letter-spacing: .02em; }
 .muted { color: #747b86; font-size: 9px; }
 
@@ -186,6 +205,108 @@ button { cursor: pointer; }
   line-height: 16px;
 }
 .form-field small { color: #686f7a; font-size: 9px; font-weight: 430; line-height: 1.45; }
+.trigger-recorder-shell { min-width: 0; }
+.trigger-recorder {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  min-height: 44px;
+  padding: 6px 8px 6px 11px;
+  overflow: hidden;
+  border: 1px solid #30343c;
+  border-radius: 14px;
+  color: #e5e7eb;
+  background: #0d0f12;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .025);
+  outline: none;
+  text-align: left;
+  transition: border-color .18s ease, box-shadow .18s ease, background-color .18s ease;
+}
+.trigger-recorder:hover { border-color: #4a505b; background: #101216; }
+.trigger-recorder:focus-visible,
+.trigger-recorder.is-recording {
+  border-color: rgba(220, 255, 105, .8);
+  background: rgba(220, 255, 105, .035);
+  box-shadow: 0 0 0 3px rgba(220, 255, 105, .16), inset 0 1px 0 rgba(255, 255, 255, .04);
+}
+.trigger-recorder-leading {
+  display: grid;
+  flex: 0 0 auto;
+  width: 27px;
+  height: 27px;
+  margin-right: 9px;
+  place-items: center;
+  border: 1px solid rgba(255, 255, 255, .07);
+  border-radius: 8px;
+  color: #7f8793;
+  background: rgba(255, 255, 255, .025);
+}
+.trigger-recorder.is-recording .trigger-recorder-leading {
+  border-color: rgba(220, 255, 105, .25);
+  color: #dcff69;
+  background: rgba(220, 255, 105, .07);
+}
+.trigger-recorder-leading svg { width: 14px; height: 14px; }
+.trigger-command-steps {
+  display: flex;
+  flex: 1 1 auto;
+  align-items: center;
+  min-width: 0;
+  overflow-x: auto;
+  scrollbar-width: none;
+  white-space: nowrap;
+}
+.trigger-command-steps::-webkit-scrollbar { display: none; }
+.trigger-command-step,
+.trigger-chord-token { display: inline-flex; align-items: center; }
+.trigger-command-step.is-ghost { opacity: .62; }
+.trigger-chord-token kbd {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 25px;
+  height: 26px;
+  gap: 5px;
+  padding: 0 8px;
+  border: 1px solid #3b4049;
+  border-bottom-color: #505762;
+  border-radius: 7px;
+  color: #dfe3e9;
+  background: linear-gradient(180deg, #20242a, #181b20);
+  box-shadow: 0 1px 0 rgba(0, 0, 0, .35), inset 0 1px 0 rgba(255, 255, 255, .05);
+  font-family: inherit;
+  font-size: 10px;
+  font-weight: 650;
+  line-height: 1;
+}
+.trigger-chord-token kbd.is-space,
+.trigger-chord-token kbd.is-enter { color: #dcff69; }
+.trigger-chord-token kbd svg { width: 13px; height: 13px; }
+.trigger-chord-separator,
+.trigger-sequence-separator {
+  flex: 0 0 auto;
+  color: #686f7a;
+  font-size: 10px;
+  font-weight: 650;
+}
+.trigger-chord-separator { margin: 0 5px; }
+.trigger-sequence-separator { margin: 0 8px; color: #8a919d; }
+.trigger-recorder-placeholder { color: #707783; font-size: 11px; }
+.trigger-recorder-action {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  height: 26px;
+  margin-left: 10px;
+  gap: 4px;
+  padding: 0 8px;
+  border-left: 1px solid rgba(255, 255, 255, .07);
+  color: #7f8793;
+  font-size: 9px;
+  font-weight: 600;
+}
+.trigger-recorder.is-recording .trigger-recorder-action { color: #dcff69; }
+.trigger-recorder-action svg { width: 12px; height: 12px; }
 
 .animation-figure { flex: 0 0 auto; width: 64px; }
 .animation-figure-visual {
